@@ -1,0 +1,33 @@
+# Data files (sensitive - don't upload)
+data/
+*.xlsx
+*.csv
+*.parquet
+
+# Models (trained on sensitive data)
+models/
+
+# Generated reports and training artifacts
+reports/
+catboost_info/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Streamlit
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temp
+*.tmp
+*.log
