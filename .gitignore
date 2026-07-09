@@ -3,6 +3,8 @@ data/
 *.xlsx
 *.csv
 *.parquet
+!data_demo/
+!data_demo/*.csv
 
 # Models (trained on sensitive data)
 models/

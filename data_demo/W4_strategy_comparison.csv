@@ -1,0 +1,5 @@
+﻿Scenario,TOPSIS_Score,Total_Orders,Weighted_CVR,Coverage(%)
+Base,0.52,274,0.304,100
+Balanced,0.76,314,0.349,96
+Aggressive,0.71,328,0.364,88
+Service First,0.68,306,0.34,92

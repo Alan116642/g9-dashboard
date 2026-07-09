@@ -87,7 +87,10 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 # ===== DATA LOADING =====
 @st.cache_data(ttl=3600)
 def load_data():
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'wide_table.csv')
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    private_path = os.path.join(base_dir, 'data', 'wide_table.csv')
+    demo_path = os.path.join(base_dir, 'data_demo', 'wide_table.csv')
+    path = private_path if os.path.exists(private_path) else demo_path
     if not os.path.exists(path): return None
     df = pd.read_csv(path)
     df['日期'] = pd.to_datetime(df['日期'])
@@ -103,7 +106,10 @@ def load_data():
 
 @st.cache_data(ttl=3600)
 def load_strategy():
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'reports', 'W4_strategy_comparison.csv')
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    private_path = os.path.join(base_dir, 'reports', 'W4_strategy_comparison.csv')
+    demo_path = os.path.join(base_dir, 'data_demo', 'W4_strategy_comparison.csv')
+    path = private_path if os.path.exists(private_path) else demo_path
     return pd.read_csv(path) if os.path.exists(path) else None
 
 # ===== FILTER LOGIC =====
