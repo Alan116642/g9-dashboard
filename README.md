@@ -1,54 +1,65 @@
-# G9 智能销售运营决策系统
+# G9 智能销售运营决策看板
 
-数据驱动 · 全链路优化 · Streamlit 密码保护仪表盘
+这是一个面向 G9 销售运营场景的 Streamlit 交互式决策看板，用于把销售线索、渠道投放、客户跟进、订单交付、售后风险和策略优化结果集中展示在同一个页面中。
 
-## 在线部署到 Streamlit Cloud
+## 看板内容
 
-1. 打开 https://streamlit.io/cloud
-2. 使用 GitHub 账号登录
-3. 点击 `New app`
-4. 选择仓库：`Alan116642/g9-dashboard`
-5. 选择分支：`main`
-6. Main file path 填写：`dashboard/app.py`
-7. 点击 `Deploy`
+### 1. 运营全景
 
-访问密码：`040102`
+展示线索总量、转化率、订单量、延迟交付率、交付评分、售后满意度、平均试驾时长等核心指标，帮助快速判断整体经营状态。
 
-仓库内包含 `data_demo/wide_table.csv` 合成演示数据，因此可以直接部署运行。真实业务数据不会上传到 GitHub。
+### 2. 渠道分析
 
-## 本地运行真实数据
+对懂车帝、抖音、小红书、门店、车展、朋友推荐等渠道进行对比，分析各渠道的线索规模、转化效率、ROI 指数和综合表现。
 
-```bash
-git clone https://github.com/Alan116642/g9-dashboard.git
-cd g9-dashboard
-pip install -r requirements.txt
+### 3. 预测中心
 
-# 放入真实数据文件
-mkdir data
-# 将 wide_table.csv 放到 data/wide_table.csv
+基于客户年龄、试驾时长、跟进次数、沟通时长、跟进强度等特征，提供客户转化概率评估和关键驱动因素分析。
 
-python -m streamlit run dashboard/app.py
-```
+### 4. 风险预警
 
-仪表盘会优先读取 `data/wide_table.csv`。如果本地没有真实数据，会自动读取 `data_demo/wide_table.csv`。
+识别延迟交付、投诉次数、交付评分、售后满意度等风险信号，帮助运营团队定位需要优先跟进的高风险客户。
 
-## 项目结构
+### 5. 销售团队
+
+展示销售员处理线索量、订单量、转化率、沟通效率和职级表现，用于评估团队产能和发现优秀销售经验。
+
+### 6. 策略推荐
+
+汇总预算再分配、跟进流程优化、定价竞争应对、售后预警体系等策略建议，并结合 TOPSIS 场景评分辅助决策。
+
+## 数据说明
+
+线上版本使用 `data_demo/` 目录中的合成演示数据，仅用于展示看板功能。真实业务数据不会上传到 GitHub。
+
+看板会优先读取本地真实数据：
 
 ```text
-g9-dashboard/
-├── dashboard/app.py              # Streamlit 交互仪表盘
-├── data_demo/                    # 可公开的合成演示数据
-│   ├── wide_table.csv
-│   └── W4_strategy_comparison.csv
-├── src/                          # 数据清洗、建模、因果分析、优化脚本
-├── requirements.txt
-├── run.py
-└── .gitignore
+data/wide_table.csv
 ```
+
+如果没有真实数据，则自动读取演示数据：
+
+```text
+data_demo/wide_table.csv
+```
+
+## 在线访问
+
+部署平台：Streamlit Cloud  
+主程序入口：`dashboard/app.py`  
+访问密码：`040102`
+
+## 技术栈
+
+- Python
+- Streamlit
+- Pandas / NumPy
+- Plotly
+- Scikit-learn 相关分析脚本
 
 ## 数据安全
 
-- `data/`、`models/`、`reports/`、`catboost_info/` 已通过 `.gitignore` 排除。
-- GitHub 仓库只上传代码和合成 demo 数据。
-- 真实 Excel、CSV、模型文件、报告文件不会推送到 GitHub。
-- 仪表盘密码是基础访问门禁，不适合作为高安全级别认证。
+- `data/`、`models/`、`reports/`、`catboost_info/` 不上传 GitHub。
+- GitHub 仓库只包含代码和合成 demo 数据。
+- 公开版本仅用于功能展示，不包含真实业务数据。
