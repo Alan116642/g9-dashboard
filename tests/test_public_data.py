@@ -14,8 +14,12 @@ PUBLIC = ROOT / "data_demo"
 def public_hash(paths: list[Path]) -> str:
     h = hashlib.sha256()
     for path in sorted(paths, key=lambda p: p.name):
+        data = path.read_bytes()
+        if path.suffix.lower() in {".csv", ".json"}:
+            text = data.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
+            data = text.encode("utf-8")
         h.update(path.name.encode("utf-8"))
-        h.update(path.read_bytes())
+        h.update(data)
     return h.hexdigest()
 
 
