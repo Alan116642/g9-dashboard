@@ -21,6 +21,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from g9_pipeline import CHART_DIR, PRIVATE_DIR, REPORTS_DIR, ROOT, CleanBundle, json_ready
+from visual_catalog import WHITEPAPER_CHART_SEQUENCE, build_extended_charts
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
@@ -41,7 +42,7 @@ def _save(fig: plt.Figure, name: str) -> Path:
     return path
 
 
-def build_charts(charts: dict[str, pd.DataFrame]) -> dict[str, Path]:
+def build_charts(charts: dict[str, pd.DataFrame], bundle: CleanBundle, analysis: dict[str, Any]) -> dict[str, Path]:
     output: dict[str, Path] = {}
     colors = {"首次面谈": "#D97706", "其他方式": "#2563EB"}
 
@@ -82,12 +83,23 @@ def build_charts(charts: dict[str, pd.DataFrame]) -> dict[str, Path]:
     output["sensitivity"] = _save(fig, "w2_04_rosenbaum_bounds.png")
 
     delivery = charts["delivery"]
-    fig, ax = plt.subplots(figsize=(9, 5))
-    y = np.arange(len(delivery))
-    ax.errorbar(delivery["估计"], y, xerr=[delivery["估计"] - delivery["下限"], delivery["上限"] - delivery["估计"]], fmt="o", color="#D97706", ecolor="#64748B", capsize=5)
-    ax.axvline(0, color="#111827", linestyle="--", linewidth=1)
-    ax.set_yticks(y, delivery["结果"]); ax.set(xlabel="调整后差异", title="延迟交付与结果变量的估计")
-    ax.spines[["top", "right"]].set_visible(False)
+    score_rows = delivery.loc[delivery["结果"].str.startswith("评分")].copy()
+    complaint_rows = delivery.loc[delivery["结果"].str.startswith("投诉")].copy()
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.8))
+    for ax, frame, title, xlabel, scale in [
+        (axes[0], score_rows, "交付评分差异", "评分差异（分）", 1.0),
+        (axes[1], complaint_rows, "投诉概率调整后关联", "概率差异（百分点）", 100.0),
+    ]:
+        y = np.arange(len(frame))
+        estimate = (frame["估计"] * scale).to_numpy(dtype=float)
+        lower = (frame["下限"] * scale).to_numpy(dtype=float)
+        upper = (frame["上限"] * scale).to_numpy(dtype=float)
+        ax.errorbar(estimate, y, xerr=[estimate - lower, upper - estimate], fmt="o", color="#D97706", ecolor="#64748B", capsize=5)
+        ax.axvline(0, color="#111827", linestyle="--", linewidth=1)
+        ax.set_yticks(y, frame["结果"]); ax.set(xlabel=xlabel, title=title)
+        ax.spines[["top", "right"]].set_visible(False)
+    fig.suptitle("延迟交付与结果变量的估计（不同单位分面展示）")
+    fig.tight_layout()
     output["delivery"] = _save(fig, "w2_05_delivery_associations.png")
 
     channel = charts["channel_descriptive"].sort_values("转化率")
@@ -121,10 +133,19 @@ def build_charts(charts: dict[str, pd.DataFrame]) -> dict[str, Path]:
     ax.spines[["top", "right"]].set_visible(False)
     output["strategy"] = _save(fig, "w4_01_opportunity_priority.png")
 
+    output.update(build_extended_charts(bundle, analysis, CHART_DIR))
+
     chart_map = {
         key: {"path": str(path.relative_to(ROOT)), "source": "data/processed/analysis_results.json and derived private aggregates", "purpose": key}
         for key, path in output.items()
     }
+    for position, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
+        chart_map[spec["key"]].update({
+            "whitepaper_order": position,
+            "section": spec["section"],
+            "caption": spec["caption"],
+            "interpretation": spec["note"],
+        })
     (REPORTS_DIR / "chart_map.json").write_text(json.dumps(chart_map, ensure_ascii=False, indent=2), encoding="utf-8")
     return output
 
@@ -292,18 +313,18 @@ def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images:
         f"时间外预测 ROC AUC 为 {model['roc_auc']:.3f}，接近随机水平；公开看板关闭逐客户预测，本地模型仅保留为验证基线。",
         "渠道费用无法分配到渠道，预算建议已替换为基于规模、转化、跟进覆盖和机会量的优先级排序。",
     ])
-    doc.add_heading("证据基础先于策略优化", level=1)
-    p = doc.add_paragraph(); _set_run(p.add_run(f"交付表中 {audit['critical_conflict_orders']:,}/{audit['row_counts']['unique_orders']:,} 个唯一订单存在关键字段冲突。任何使用原始交付行直接计算延迟率、评分或投诉差异的看板都会受到重复计数风险。"))
-    _add_image(doc, images["balance"], "图 1. PSM 匹配后的协变量平衡")
-    doc.add_heading("面谈跟进应通过实验验证，而不是直接扩张", level=1)
-    _add_image(doc, images["effects"], "图 2. 跟进方式效应估计")
-    p = doc.add_paragraph(); _set_run(p.add_run("匹配和平衡改进了可比性，但没有改变置信区间跨零的事实。缺少下订时间戳意味着处理先于结果仍是不可验证假设。"))
-    doc.add_heading("交付、渠道与预测均需降级表述", level=1)
-    _add_image(doc, images["delivery"], "图 3. 延迟交付调整后关联")
-    _add_image(doc, images["channel"], "图 4. 渠道转化率比较")
-    _add_image(doc, images["importance"], "图 5. 时间外预测特征重要性")
-    doc.add_heading("运营机会排序替代伪 ROI", level=1)
-    _add_image(doc, images["strategy"], "图 6. 城市 × 渠道机会优先级")
+    doc.add_heading("如何阅读这 40 张图", level=1)
+    p = doc.add_paragraph(); _set_run(p.add_run(f"交付表中 {audit['critical_conflict_orders']:,}/{audit['row_counts']['unique_orders']:,} 个唯一订单存在关键字段冲突。图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层；每张图旁均标明其可支持与不可支持的解释。"))
+    current_section = None
+    for figure_no, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
+        if spec["section"] != current_section:
+            current_section = spec["section"]
+            doc.add_heading(current_section, level=1)
+        p = doc.add_paragraph(); p.paragraph_format.space_after = Pt(4)
+        _set_run(p.add_run(spec["note"]), size=10.5, color="111827")
+        _add_image(doc, images[spec["key"]], f"图 {figure_no}. {spec['caption']}")
+
+    doc.add_heading("运营机会排序明细", level=1)
     rows = []
     for _, row in strategy.head(8).iterrows():
         rows.append([f"{row['城市']} / {row['渠道']}", f"{row['线索数']:,}", f"{row['转化率']:.1%}", row["建议"]])
@@ -325,7 +346,10 @@ def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images:
     _add_bullets(doc, ["公开看板使用样本量阈值为 10 的脱敏汇总数据。", "预测重要性不是因果贡献。", "机会优先级不是预算 ROI，也不等于预期增量订单。", "原始 Excel 未被修改。"])
     docx_path = REPORTS_DIR / "W5_sales_operations_white_paper.docx"; doc.save(docx_path)
 
-    md = ["# G9 销售运营证据白皮书", "", "## Executive Summary", "", f"- 面谈 ATT：{_pp(psm['estimate'])}，95% CI {_ci_pp(psm['ci95'])}，未发现可靠增益。", f"- 时间外 ROC AUC：{model['roc_auc']:.3f}，公开看板不提供逐客户预测。", "- RDD、多触点 Shapley 和渠道 ROI 均因数据条件不足而停用。", "", "## 行动", "", "1. 补齐下订、承诺交付和实际交付时间戳。", "2. 运行随机化跟进方式试点。", "3. 建立渠道级花费与触点路径。", ""]
+    md = ["# G9 销售运营证据白皮书", "", "## Executive Summary", "", f"- 面谈 ATT：{_pp(psm['estimate'])}，95% CI {_ci_pp(psm['ci95'])}，未发现可靠增益。", f"- 时间外 ROC AUC：{model['roc_auc']:.3f}，公开看板不提供逐客户预测。", "- RDD、多触点 Shapley 和渠道 ROI 均因数据条件不足而停用。", f"- 白皮书包含 {len(WHITEPAPER_CHART_SEQUENCE)} 张审计后分析图，每张图均配有证据边界说明。", "", "## 图表目录", ""]
+    for i, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
+        md.append(f"{i}. **{spec['caption']}**：{spec['note']}")
+    md += ["", "## 行动", "", "1. 补齐下订、承诺交付和实际交付时间戳。", "2. 运行随机化跟进方式试点。", "3. 建立渠道级花费与触点路径。", ""]
     md_path = REPORTS_DIR / "W5_white_paper.md"; md_path.write_text("\n".join(md), encoding="utf-8")
     return docx_path, md_path
 
@@ -388,13 +412,20 @@ def generate_pdf_reports(analysis: dict[str, Any], audit: dict[str, Any], images
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.units import inch
     from reportlab.platypus import Image as RLImage
-    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     font_name, styles = _pdf_styles()
     psm = analysis["psm"]["psm_att"]; aipw = analysis["psm"]["aipw_att"]
     score = analysis["delivery"]["delivery_score_adjusted_association"]
 
     def image_block(key: str, caption: str):
         return [RLImage(str(images[key]), width=6.15 * inch, height=3.55 * inch), Paragraph(caption, styles["caption"])]
+
+    def compact_image_block(key: str, caption: str, note: str):
+        return KeepTogether([
+            Paragraph(note, styles["body"]),
+            RLImage(str(images[key]), width=5.55 * inch, height=3.05 * inch),
+            Paragraph(caption, styles["caption"]),
+        ])
 
     w2_path = REPORTS_DIR / "W2_causal_attribution_report.pdf"
     w2 = SimpleDocTemplate(str(w2_path), pagesize=letter, rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=46, title="G9 因果归因与证据审计")
@@ -424,10 +455,13 @@ def generate_pdf_reports(analysis: dict[str, Any], audit: dict[str, Any], images
     white = [Paragraph("G9 销售运营证据白皮书", styles["title"]), Paragraph("Executive Summary", styles["h1"])]
     for item in [f"• 面谈 ATT 为 {_pp(psm['estimate'])}，不支持确定性扩张。", f"• 时间外 ROC AUC 为 {model['roc_auc']:.3f}，公开看板关闭逐客户预测。", "• 交付表关键冲突严重，延迟指标只使用无冲突订单。", "• 预算 ROI 改为机会优先级，所有建议需通过试验验证。"]:
         white.append(Paragraph(item, styles["bullet"]))
-    white += [Paragraph("从数据质量到可行动证据", styles["h1"]), Paragraph("原始工作簿保持不变。线索、订单和跟进事件分别在正确粒度重建，并把冲突和时序异常保留下来供审计。", styles["body"])] + image_block("balance", "图 1. PSM 协变量平衡")
-    white += [Paragraph("现有数据没有证明面谈或延迟的预设结论", styles["h1"])] + image_block("effects", "图 2. 跟进方式效应估计") + image_block("delivery", "图 3. 延迟交付关联估计")
-    white += [PageBreak(), Paragraph("渠道和预测均只作关联性解释", styles["h1"])] + image_block("channel", "图 4. 渠道转化率") + image_block("importance", "图 5. 时间外预测重要性")
-    white += [Paragraph("机会排序替代伪 ROI", styles["h1"]), Paragraph("排序由规模、当前转化差距和有效跟进覆盖构成，只用于确定诊断和试验优先级。", styles["body"])] + image_block("strategy", "图 6. 城市 × 渠道机会优先级")
+    white += [Paragraph("如何阅读这 40 张图", styles["h1"]), Paragraph("图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层。图旁说明明确限制其解释边界，避免把相关性包装为因果结论。", styles["body"]), PageBreak()]
+    current_section = None
+    for figure_no, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
+        if spec["section"] != current_section:
+            current_section = spec["section"]
+            white.append(Paragraph(current_section, styles["h1"]))
+        white.append(compact_image_block(spec["key"], f"图 {figure_no}. {spec['caption']}", spec["note"]))
     white += [Paragraph("90 天实施路径", styles["h1"])] + [Paragraph(item, styles["bullet"]) for item in ["• 0-30 天：锁定唯一键、时间戳和冲突修复责任。", "• 31-60 天：开展跟进随机化试点并建立渠道花费明细。", "• 61-90 天：将实验结果、证据等级和数据哈希接入经营复盘。"]]
     w5.build(white, onFirstPage=_pdf_page, onLaterPages=_pdf_page)
     return w2_path, w5_path
@@ -450,7 +484,7 @@ def write_supporting_reports(analysis: dict[str, Any], strategy: pd.DataFrame) -
 
 
 def generate_all_reports(bundle: CleanBundle, analysis: dict[str, Any], charts: dict[str, pd.DataFrame]) -> dict[str, Path]:
-    images = build_charts(charts)
+    images = build_charts(charts, bundle, analysis)
     strategy = charts["strategy"]
     w2_docx = generate_w2_docx(analysis, bundle.audit, images)
     w5_docx, w5_md = generate_whitepaper(analysis, bundle.audit, images, strategy)
