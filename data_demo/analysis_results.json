@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-07-13T16:24:24.739577+08:00",
+  "generated_at": "2026-07-13T22:21:30.513913+08:00",
   "source_sha256": "e82400e02995947e5506d4b082e99aa2f0c2cb12e13cfc3ea21b8fe70d01ec70",
   "psm": {
     "psm_att": {
@@ -26,13 +26,13 @@
     },
     "aipw_att": {
       "estimand": "Doubly robust ATT robustness estimate",
-      "estimate": 0.0041567617098425755,
+      "estimate": 0.004156761709842579,
       "standard_error": 0.009730366292228952,
       "ci95": [
-        -0.014914756222926168,
-        0.02322827964261132
+        -0.014914756222926165,
+        0.023228279642611323
       ],
-      "p_value": 0.6692374613963983,
+      "p_value": 0.669237461396398,
       "sample_size": 13985,
       "method": "AIPW ATT with logistic propensity and treatment-aware logistic outcome model",
       "balance_status": "not_applicable",
@@ -54,7 +54,7 @@
         0.16332408205664425,
         0.2529475883993552
       ],
-      "caliper": 0.01885188362488555,
+      "caliper": 0.018851883624885553,
       "max_abs_smd_after": 0.04576744308412725,
       "discordant_pairs": 1183,
       "treated_favorable_pairs": 587,

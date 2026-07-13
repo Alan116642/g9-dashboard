@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import g9_pipeline as gp
+from visual_catalog import WHITEPAPER_CHART_SEQUENCE
 
 
 REQUIRED_RESULT_KEYS = {
@@ -72,3 +73,24 @@ def test_rdd_is_blocked_without_valid_assignment_variable():
     assert rdd["estimate"] is None
     assert rdd["balance_status"] == "failed_design"
     assert rdd["evidence_level"] == "not_identified"
+
+
+def test_whitepaper_visual_catalog_matches_legacy_volume():
+    keys = [item["key"] for item in WHITEPAPER_CHART_SEQUENCE]
+    assert len(keys) >= 40
+    assert len(keys) == len(set(keys))
+    assert {"effects", "delivery", "channel_raw_vs_standardized", "strategy"}.issubset(keys)
+
+
+def test_dashboard_renders_six_pages_and_40_charts(monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    password = "dashboard-smoke-test-password"
+    monkeypatch.setenv("APP_PASSWORD", password)
+    app = AppTest.from_file(str(ROOT / "dashboard" / "app.py"), default_timeout=120).run()
+    app.text_input[0].set_value(password)
+    app.button[0].click().run(timeout=120)
+
+    assert not app.exception
+    assert [tab.label for tab in app.tabs] == ["运营全景", "渠道分析", "预测中心", "风险预警", "销售团队", "策略推荐"]
+    assert len(app.get("plotly_chart")) == 40
