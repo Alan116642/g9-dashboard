@@ -1,0 +1,320 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-07-13T16:24:24.739577+08:00",
+  "source_sha256": "e82400e02995947e5506d4b082e99aa2f0c2cb12e13cfc3ea21b8fe70d01ec70",
+  "psm": {
+    "psm_att": {
+      "estimand": "ATT of first-day face-to-face follow-up on lead conversion",
+      "estimate": -0.0032165832737669764,
+      "standard_error": 0.012407335696232239,
+      "ci95": [
+        -0.026813795568263042,
+        0.02215868477483917
+      ],
+      "p_value": 0.7936304874028679,
+      "sample_size": 5596,
+      "method": "1:1 nearest-neighbor PSM without replacement; 0.2 SD logit caliper; exact city and month; 1,000 paired bootstraps",
+      "balance_status": "passed",
+      "assumptions": [
+        "No unmeasured confounding after adjustment for observed baseline covariates.",
+        "The first valid follow-up occurred before ordering; order timestamps are unavailable, so this cannot be verified.",
+        "Treatment is the only method recorded on the first valid follow-up date; ambiguous same-day methods are excluded.",
+        "Exact matching is enforced within city and lead month."
+      ],
+      "evidence_level": "conditional_causal_no_reliable_gain",
+      "data_as_of": "2025-12-31"
+    },
+    "aipw_att": {
+      "estimand": "Doubly robust ATT robustness estimate",
+      "estimate": 0.0041567617098425755,
+      "standard_error": 0.009730366292228952,
+      "ci95": [
+        -0.014914756222926168,
+        0.02322827964261132
+      ],
+      "p_value": 0.6692374613963983,
+      "sample_size": 13985,
+      "method": "AIPW ATT with logistic propensity and treatment-aware logistic outcome model",
+      "balance_status": "not_applicable",
+      "assumptions": [
+        "No unmeasured confounding after adjustment for observed baseline covariates.",
+        "The first valid follow-up occurred before ordering; order timestamps are unavailable, so this cannot be verified.",
+        "Treatment is the only method recorded on the first valid follow-up date; ambiguous same-day methods are excluded.",
+        "Exact matching is enforced within city and lead month."
+      ],
+      "evidence_level": "robustness_check",
+      "data_as_of": "2025-12-31"
+    },
+    "diagnostics": {
+      "eligible_leads": 13985,
+      "treated_leads": 2803,
+      "control_leads": 11182,
+      "matched_pairs": 2798,
+      "common_support": [
+        0.16332408205664425,
+        0.2529475883993552
+      ],
+      "caliper": 0.01885188362488555,
+      "max_abs_smd_after": 0.04576744308412725,
+      "discordant_pairs": 1183,
+      "treated_favorable_pairs": 587,
+      "control_favorable_pairs": 596
+    }
+  },
+  "delivery": {
+    "delivery_score_raw_difference": {
+      "estimand": "Mean delivery-score difference: delayed minus on-time",
+      "estimate": 0.03595927601809956,
+      "standard_error": 0.04301050181353696,
+      "ci95": [
+        -0.048341307536432884,
+        0.12025985957263201
+      ],
+      "p_value": 0.40323806254883476,
+      "sample_size": 1734,
+      "method": "Unadjusted Welch comparison",
+      "balance_status": "not_applicable",
+      "assumptions": [
+        "Only orders without conflicts in delivery date, configuration, mileage, delay flag, and score are included.",
+        "City, configuration, and delivery month are adjusted; unmeasured delivery complexity may remain.",
+        "Promised and actual delivery dates are unavailable, so delay severity and an assignment threshold cannot be reconstructed."
+      ],
+      "evidence_level": "descriptive_association",
+      "data_as_of": "2026-02-27"
+    },
+    "delivery_score_adjusted_association": {
+      "estimand": "Adjusted delivery-score association with delay",
+      "estimate": 0.03530884968090684,
+      "standard_error": 0.04349492774993268,
+      "ci95": [
+        -0.04994120870896122,
+        0.1205589080707749
+      ],
+      "p_value": 0.41691079150167365,
+      "sample_size": 1734,
+      "method": "OLS with HC3 robust SE; controls: city, configuration, delivery month",
+      "balance_status": "not_applicable",
+      "assumptions": [
+        "Only orders without conflicts in delivery date, configuration, mileage, delay flag, and score are included.",
+        "City, configuration, and delivery month are adjusted; unmeasured delivery complexity may remain.",
+        "Promised and actual delivery dates are unavailable, so delay severity and an assignment threshold cannot be reconstructed."
+      ],
+      "evidence_level": "adjusted_association",
+      "data_as_of": "2026-02-27",
+      "q_value": 0.41691079150167365
+    },
+    "complaint_adjusted_association": {
+      "estimand": "Adjusted complaint-probability association with delay",
+      "estimate": -0.049084704373638655,
+      "standard_error": 0.022209120732954748,
+      "ci95": [
+        -0.09261458101022996,
+        -0.005554827737047352
+      ],
+      "p_value": 0.02709720238251021,
+      "sample_size": 1734,
+      "method": "Linear probability model with HC3 robust SE; controls: city, configuration, delivery month",
+      "balance_status": "not_applicable",
+      "assumptions": [
+        "Only orders without conflicts in delivery date, configuration, mileage, delay flag, and score are included.",
+        "City, configuration, and delivery month are adjusted; unmeasured delivery complexity may remain.",
+        "Promised and actual delivery dates are unavailable, so delay severity and an assignment threshold cannot be reconstructed."
+      ],
+      "evidence_level": "adjusted_association",
+      "data_as_of": "2026-02-27",
+      "q_value": 0.05419440476502042
+    },
+    "rdd_feasibility": {
+      "estimand": "RDD feasibility for delivery delay",
+      "estimate": null,
+      "standard_error": null,
+      "ci95": [
+        null,
+        null
+      ],
+      "p_value": null,
+      "sample_size": 1734,
+      "method": "Design audit: no continuous assignment variable with a known operational cutoff",
+      "balance_status": "failed_design",
+      "assumptions": [
+        "Only orders without conflicts in delivery date, configuration, mileage, delay flag, and score are included.",
+        "City, configuration, and delivery month are adjusted; unmeasured delivery complexity may remain.",
+        "Promised and actual delivery dates are unavailable, so delay severity and an assignment threshold cannot be reconstructed."
+      ],
+      "evidence_level": "not_identified",
+      "data_as_of": "2026-02-27"
+    }
+  },
+  "channel": {
+    "channel_attribution_scope": {
+      "estimand": "Adjusted marginal conversion probability by single acquisition channel",
+      "estimate": null,
+      "standard_error": null,
+      "ci95": [
+        null,
+        null
+      ],
+      "p_value": null,
+      "sample_size": 15000,
+      "method": "Descriptive Wilson intervals and logistic standardization; not multi-touch Shapley attribution",
+      "balance_status": "not_applicable",
+      "assumptions": [
+        "Each lead has one acquisition channel.",
+        "No channel-level spend or multi-touch path is available.",
+        "Standardized differences are predictive/associational, not causal."
+      ],
+      "evidence_level": "adjusted_association",
+      "data_as_of": "2025-12-31"
+    },
+    "descriptive": [
+      {
+        "渠道": "官网",
+        "线索数": 3000,
+        "订单数": 897,
+        "转化率": 0.299,
+        "置信区间下限": 0.28288264716052186,
+        "置信区间上限": 0.3156314688967297,
+        "每百线索订单数": 29.9
+      },
+      {
+        "渠道": "懂车帝",
+        "线索数": 3627,
+        "订单数": 1170,
+        "转化率": 0.3225806451612903,
+        "置信区间下限": 0.30756171606631116,
+        "置信区间上限": 0.3379750101847046,
+        "每百线索订单数": 32.25806451612903
+      },
+      {
+        "渠道": "抖音",
+        "线索数": 3074,
+        "订单数": 917,
+        "转化率": 0.2983083929733247,
+        "置信区间下限": 0.2823945467218931,
+        "置信区间上限": 0.31472572093580586,
+        "每百线索订单数": 29.830839297332467
+      },
+      {
+        "渠道": "朋友推荐",
+        "线索数": 2225,
+        "订单数": 665,
+        "转化率": 0.298876404494382,
+        "置信区间下限": 0.28021526013528886,
+        "置信区间上限": 0.31823085644832116,
+        "每百线索订单数": 29.8876404494382
+      },
+      {
+        "渠道": "车展",
+        "线索数": 1579,
+        "订单数": 479,
+        "转化率": 0.3033565547815073,
+        "置信区间下限": 0.2811813354717814,
+        "置信区间上限": 0.32648629216701713,
+        "每百线索订单数": 30.335655478150727
+      },
+      {
+        "渠道": "门店",
+        "线索数": 1495,
+        "订单数": 447,
+        "转化率": 0.29899665551839466,
+        "置信区间下限": 0.2763283541092785,
+        "置信区间上限": 0.32269531857234446,
+        "每百线索订单数": 29.899665551839465
+      }
+    ],
+    "standardized": [
+      {
+        "渠道": "官网",
+        "标准化边际转化率": 0.29851823346301454
+      },
+      {
+        "渠道": "懂车帝",
+        "标准化边际转化率": 0.32308387674324207
+      },
+      {
+        "渠道": "抖音",
+        "标准化边际转化率": 0.29804264370290295
+      },
+      {
+        "渠道": "朋友推荐",
+        "标准化边际转化率": 0.29924094275312974
+      },
+      {
+        "渠道": "车展",
+        "标准化边际转化率": 0.30286112556279127
+      },
+      {
+        "渠道": "门店",
+        "标准化边际转化率": 0.2995402046412575
+      }
+    ]
+  },
+  "model": {
+    "conversion_model": {
+      "estimand": "Out-of-time lead conversion prediction quality",
+      "estimate": 0.5114391775036055,
+      "standard_error": null,
+      "ci95": [
+        null,
+        null
+      ],
+      "p_value": null,
+      "sample_size": 3000,
+      "method": "Chronological 80/20 split; baseline-only logistic pipeline",
+      "balance_status": "not_applicable",
+      "assumptions": [
+        "Only fields available at lead creation are used.",
+        "Performance is predictive and does not imply causal feature effects."
+      ],
+      "evidence_level": "predictive_validation",
+      "data_as_of": "2025-12-31"
+    },
+    "metrics": {
+      "roc_auc": 0.5114391775036055,
+      "pr_auc": 0.32633650737432224,
+      "brier_score": 0.21512624482817116,
+      "train_size": 12000,
+      "test_size": 3000,
+      "train_end": "2025-11-25",
+      "test_start": "2025-11-25"
+    },
+    "feature_importance": [
+      {
+        "特征": "城市",
+        "预测重要性": 0.016430473332268918,
+        "标准差": 0.009860573102895485
+      },
+      {
+        "特征": "渠道",
+        "预测重要性": 0.01029166853978165,
+        "标准差": 0.004900755224220301
+      },
+      {
+        "特征": "客户年龄",
+        "预测重要性": -3.70489216283576e-05,
+        "标准差": 0.0006569635830257553
+      },
+      {
+        "特征": "月份",
+        "预测重要性": -0.0019580897638014627,
+        "标准差": 0.0023200093090377087
+      },
+      {
+        "特征": "试驾时长",
+        "预测重要性": -0.0048505926018935445,
+        "标准差": 0.0025120754968499266
+      },
+      {
+        "特征": "客户性别",
+        "预测重要性": -0.005104302790450321,
+        "标准差": 0.003359432302978581
+      }
+    ],
+    "survival_analysis_status": "removed: no valid event-time definition is available"
+  },
+  "interpretation_rules": {
+    "significance": "A result is not described as reliable positive evidence unless its 95% CI excludes zero and design diagnostics pass.",
+    "causal_language": "Adjusted associations and predictive explanations are not described as causal effects.",
+    "multiple_testing": "Exploratory subgroup comparisons require Benjamini-Hochberg FDR control before promotion to findings."
+  }
+}

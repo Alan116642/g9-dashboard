@@ -1,0 +1,31 @@
+{
+  "dataset_type": "public_sanitized_aggregate",
+  "generated_at": "2026-07-13T16:24:24.808255+08:00",
+  "data_as_of": "2025-12-31",
+  "source_workbook_sha256": "e82400e02995947e5506d4b082e99aa2f0c2cb12e13cfc3ea21b8fe70d01ec70",
+  "public_data_hash": "d137d9baaa5ea2080455526094254ef59bdbe9ba8276dc819df936359ab7a4a3",
+  "privacy": {
+    "cell_suppression_threshold": 10,
+    "lead_cells_suppressed": 3597,
+    "order_cells_suppressed": 418,
+    "excluded_fields": [
+      "线索ID",
+      "订单ID",
+      "销售员ID",
+      "精确日期",
+      "原始客户明细"
+    ]
+  },
+  "global_summary": {
+    "线索数": 15000,
+    "下订数": 4575,
+    "转化率": 0.305,
+    "有效跟进线索数": 14602,
+    "无关键冲突订单数": 1734
+  },
+  "metric_definitions": {
+    "每百线索订单数": "下订数 / 线索数 × 100；不是 ROI。",
+    "延迟交付率": "无关键冲突订单中的延迟订单数 / 有效订单数。",
+    "交付评分": "无关键冲突订单的加权平均交付评分。"
+  }
+}
