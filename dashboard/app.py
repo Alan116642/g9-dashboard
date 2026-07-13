@@ -91,10 +91,12 @@ def pp(value: float | None) -> str:
     return f"{100 * value:+.2f}pp"
 
 
-def evidence_text(record: dict) -> str:
+def evidence_text(record: dict, unit: str = "pp") -> str:
     ci = record.get("ci95", [None, None])
     if record.get("estimate") is None:
         return "当前数据不满足识别条件"
+    if unit == "score":
+        return f"估计 {record['estimate']:+.3f} 分；95% CI [{ci[0]:+.3f} 分, {ci[1]:+.3f} 分]"
     return f"估计 {pp(record['estimate'])}；95% CI [{pp(ci[0])}, {pp(ci[1])}]"
 
 
@@ -222,7 +224,7 @@ with tabs[3]:
         st.dataframe(risk.style.format({"延迟率": "{:.1%}", "投诉订单率": "{:.1%}"}), width="stretch", hide_index=True)
     delivery = results["delivery"]["delivery_score_adjusted_association"]
     rdd = results["delivery"]["rdd_feasibility"]
-    st.markdown(f"<div class='evidence'><b>延迟与评分：</b>{evidence_text(delivery)}；证据等级：{delivery['evidence_level']}。<br><b>RDD 审计：</b>{rdd['evidence_level']}，未生成断点结论。</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='evidence'><b>延迟与评分：</b>{evidence_text(delivery, unit='score')}；证据等级：{delivery['evidence_level']}。<br><b>RDD 审计：</b>{rdd['evidence_level']}，未生成断点结论。</div>", unsafe_allow_html=True)
 
 with tabs[4]:
     team = lead_filtered.groupby("城市", as_index=False)[["线索数", "下订数", "有效跟进线索数", "跟进次数合计"]].sum()
