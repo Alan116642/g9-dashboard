@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -50,15 +51,26 @@ def require_login() -> None:
     st.stop()
 
 
-@st.cache_data(show_spinner=False)
-def load_dashboard_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict, dict, str]:
+def active_data_dir() -> Path:
     local_files = [
         LOCAL_DIR / "dashboard_lead_cube.csv",
         LOCAL_DIR / "dashboard_order_cube.csv",
         LOCAL_DIR / "analysis_results.json",
         LOCAL_DIR / "dashboard_metadata.json",
     ]
-    base = LOCAL_DIR if all(p.exists() for p in local_files) else PUBLIC_DIR
+    return LOCAL_DIR if all(p.exists() for p in local_files) else PUBLIC_DIR
+
+
+def dashboard_data_version() -> str:
+    """Return a content key so Streamlit invalidates cached data after deploys."""
+    metadata_path = active_data_dir() / "dashboard_metadata.json"
+    return hashlib.sha256(metadata_path.read_bytes()).hexdigest()
+
+
+@st.cache_data(show_spinner=False)
+def load_dashboard_data(data_version: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict, dict, str]:
+    del data_version  # The value is intentionally used only as a cache invalidation key.
+    base = active_data_dir()
     mode = "本地完整数据" if base == LOCAL_DIR else "公开脱敏汇总数据"
     lead = pd.read_csv(base / "dashboard_lead_cube.csv")
     order = pd.read_csv(base / "dashboard_order_cube.csv")
@@ -177,7 +189,7 @@ def heatmap(frame: pd.DataFrame, index: str, columns: str, values: str, title: s
 
 
 require_login()
-lead_cube, order_cube, strategy, results, metadata, data_mode = load_dashboard_data()
+lead_cube, order_cube, strategy, results, metadata, data_mode = load_dashboard_data(dashboard_data_version())
 
 st.markdown(
     """
