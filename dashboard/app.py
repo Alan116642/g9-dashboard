@@ -36,7 +36,13 @@ def check_password():
     </div>
     """, unsafe_allow_html=True)
 
-    password = st.text_input("", type="password", placeholder="输入密码", key="pwd_input")
+    password = st.text_input(
+        "访问密码",
+        type="password",
+        placeholder="输入密码",
+        key="pwd_input",
+        label_visibility="collapsed",
+    )
 
     if st.button("登录", type="primary", use_container_width=True):
         # SHA256 hash comparison
