@@ -1,18 +1,12 @@
-# Optional local dependencies for the data-cleaning and modeling scripts.
-# Streamlit Cloud uses the lean requirements.txt file for the dashboard.
-pandas>=2.0
-numpy>=1.24
-matplotlib>=3.7
-seaborn>=0.12
-plotly>=5.14
-scikit-learn>=1.3
-xgboost>=1.7
-lightgbm>=4.0
-shap>=0.42
-scipy>=1.10
-openpyxl>=3.1
-streamlit>=1.25
-python-pptx>=0.6
-jupyter>=1.0
-optuna>=3.0
-pulp>=2.7
+-r requirements.txt
+scipy>=1.14,<2
+scikit-learn>=1.6,<2
+statsmodels>=0.14,<1
+openpyxl>=3.1,<4
+matplotlib>=3.9,<4
+python-docx>=1.1,<2
+reportlab>=4.2,<5
+nbformat>=5.10,<6
+nbclient>=0.10,<1
+ipykernel>=6.29,<8
+joblib>=1.4,<2

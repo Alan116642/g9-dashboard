@@ -1,35 +1,43 @@
-# Data files (sensitive - don't upload)
+# Sensitive source and row-level data
 data/
 *.xlsx
-*.csv
+*.xls
 *.parquet
+*.csv
+
+# Only these reviewed public aggregates may be tracked
 !data_demo/
-!data_demo/*.csv
+data_demo/*
+!data_demo/dashboard_lead_cube.csv
+!data_demo/dashboard_order_cube.csv
+!data_demo/W4_strategy_comparison.csv
+!data_demo/analysis_results.json
+!data_demo/dashboard_metadata.json
 
-# Models (trained on sensitive data)
+# Models and generated local artifacts
 models/
-
-# Generated reports and training artifacts
 reports/
 catboost_info/
+tmp/
 
-# Python
+# Python and test caches
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+.pytest_cache/
+.coverage
 
-# Streamlit
+# Streamlit secrets are never committed
 .streamlit/
+!.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 
-# OS
+# OS / editors / logs
 .DS_Store
 Thumbs.db
-
-# IDE
 .vscode/
 .idea/
-
-# Temp
 *.tmp
 *.log

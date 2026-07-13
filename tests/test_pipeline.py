@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+import g9_pipeline as gp
+
+
+REQUIRED_RESULT_KEYS = {
+    "estimand", "estimate", "standard_error", "ci95", "p_value", "sample_size",
+    "method", "balance_status", "assumptions", "evidence_level", "data_as_of",
+}
+
+
+def synthetic_leads(effect: float, seed: int = 7, n: int = 1200) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    treatment = rng.binomial(1, 0.35, n)
+    base = 0.25 + 0.002 * (rng.normal(40, 8, n) - 40)
+    outcome = rng.binomial(1, np.clip(base + effect * treatment, 0.02, 0.95))
+    dates = pd.to_datetime("2025-01-01") + pd.to_timedelta(rng.integers(0, 180, n), unit="D")
+    return pd.DataFrame({
+        "有效跟进线索": 1,
+        "处理模糊": False,
+        "面谈处理": treatment,
+        "是否下订": outcome,
+        "客户年龄": rng.normal(40, 8, n),
+        "试驾时长": rng.normal(32, 7, n),
+        "客户性别": rng.choice(["男", "女"], n),
+        "城市": rng.choice(["上海", "北京", "深圳"], n),
+        "月份": dates.to_period("M").astype(str),
+        "渠道": rng.choice(["官网", "门店", "朋友推荐"], n),
+        "日期": dates,
+    })
+
+
+def test_result_contract_is_complete():
+    record = gp.result_record(
+        estimand="test", estimate=0.0, standard_error=0.1, ci95=[-0.2, 0.2],
+        p_value=1.0, sample_size=20, method="synthetic", balance_status="passed",
+        assumptions=["none"], evidence_level="test", data_as_of="2025-01-01",
+    )
+    assert REQUIRED_RESULT_KEYS == set(record)
+
+
+def test_null_effect_is_not_promoted(monkeypatch):
+    monkeypatch.setattr(gp, "BOOTSTRAPS", 250)
+    result, _ = gp.run_psm(synthetic_leads(0.0, seed=31))
+    att = result["psm_att"]
+    assert att["ci95"][0] <= 0 <= att["ci95"][1]
+    assert att["evidence_level"] == "conditional_causal_no_reliable_gain"
+
+
+def test_known_effect_recovers_positive_direction(monkeypatch):
+    monkeypatch.setattr(gp, "BOOTSTRAPS", 250)
+    result, _ = gp.run_psm(synthetic_leads(0.20, seed=19, n=1800))
+    att = result["psm_att"]
+    assert att["estimate"] > 0.10
+    assert abs(att["estimate"] - 0.20) < 0.10
+
+
+def test_rdd_is_blocked_without_valid_assignment_variable():
+    import json
+    results = json.loads((ROOT / "data_demo" / "analysis_results.json").read_text(encoding="utf-8"))
+    rdd = results["delivery"]["rdd_feasibility"]
+    assert rdd["estimate"] is None
+    assert rdd["balance_status"] == "failed_design"
+    assert rdd["evidence_level"] == "not_identified"
