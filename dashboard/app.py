@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +20,24 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_DIR = ROOT / "data_demo"
 LOCAL_DIR = ROOT / "data" / "processed"
+sys.path.insert(0, str(ROOT / "src"))
+
+from visual_semantics import (  # noqa: E402
+    GOOD,
+    GOOD_GREEN,
+    IMPROVE,
+    IMPROVE_RED,
+    MUTED_GRAY,
+    NEUTRAL_BLUE,
+    STATUS_COLORS,
+    STATUS_ORDER,
+    WATCH,
+    WATCH_AMBER,
+    classify_relative,
+    semantic_colorscale,
+)
+
+px.defaults.color_discrete_sequence = [NEUTRAL_BLUE, MUTED_GRAY, WATCH_AMBER, "#0EA5E9", "#7C3AED"]
 
 st.set_page_config(page_title="G9 智能销售运营决策", page_icon="◫", layout="wide")
 
@@ -180,11 +199,58 @@ def render_pair(left: go.Figure, right: go.Figure) -> None:
     render_chart(c2, right)
 
 
-def heatmap(frame: pd.DataFrame, index: str, columns: str, values: str, title: str, percent: bool = False) -> go.Figure:
+def semantic_bar(
+    frame: pd.DataFrame,
+    *,
+    x: str,
+    y: str,
+    title: str,
+    direction: str,
+    orientation: str = "v",
+    hover_data: list[str] | None = None,
+) -> go.Figure:
+    data = frame.copy()
+    data["改进状态"] = classify_relative(data[y if orientation == "v" else x], direction)
+    return px.bar(
+        data,
+        x=x,
+        y=y,
+        orientation=orientation,
+        color="改进状态",
+        color_discrete_map=STATUS_COLORS,
+        category_orders={"改进状态": STATUS_ORDER},
+        hover_data=hover_data,
+        title=title,
+    )
+
+
+def semantic_line(frame: pd.DataFrame, *, x: str, y: str, title: str, direction: str) -> go.Figure:
+    data = frame.copy()
+    data["改进状态"] = classify_relative(data[y], direction)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data[x], y=data[y], mode="lines", line=dict(color=MUTED_GRAY, width=2), name="趋势"))
+    for status in STATUS_ORDER:
+        subset = data.loc[data["改进状态"] == status]
+        if not subset.empty:
+            fig.add_trace(go.Scatter(x=subset[x], y=subset[y], mode="markers", marker=dict(color=STATUS_COLORS[status], size=9), name=status, customdata=subset[["改进状态"]], hovertemplate=f"{x}: %{{x}}<br>{y}: %{{y}}<br>状态: %{{customdata[0]}}<extra></extra>"))
+    fig.update_layout(title=title)
+    return fig
+
+
+def heatmap(
+    frame: pd.DataFrame,
+    index: str,
+    columns: str,
+    values: str,
+    title: str,
+    percent: bool = False,
+    direction: str | None = None,
+) -> go.Figure:
     pivot = frame.pivot(index=index, columns=columns, values=values)
     texttemplate = ".1%" if percent else ",.0f"
-    fig = px.imshow(pivot, text_auto=texttemplate, aspect="auto", color_continuous_scale="Blues", title=title)
-    fig.update_layout(coloraxis_colorbar_title="比例" if percent else "数量")
+    scale = semantic_colorscale(direction) if direction else "Blues"
+    fig = px.imshow(pivot, text_auto=texttemplate, aspect="auto", color_continuous_scale=scale, title=title)
+    fig.update_layout(coloraxis_colorbar_title="相对表现" if direction else "比例" if percent else "数量")
     return fig
 
 
@@ -197,6 +263,8 @@ st.markdown(
     .block-container{padding-top:1.7rem;max-width:1480px}
     [data-testid='stMetric']{background:#f7f8fa;border:1px solid #e7e9ee;padding:14px;border-radius:12px}
     .evidence{border-left:4px solid #2563eb;background:#f4f7ff;padding:12px 16px;border-radius:6px}
+    .action-legend{display:flex;gap:18px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;padding:10px 14px;border-radius:10px;margin:4px 0 14px}
+    .action-legend span{font-weight:650}.legend-note{font-weight:400!important;color:#64748b}
     </style>
     """,
     unsafe_allow_html=True,
@@ -208,6 +276,19 @@ with head:
     st.caption("统一口径 · 因果证据分级 · 公开数据隐私保护 · 六页共 40 个分析图")
 with badge:
     st.info(data_mode)
+
+st.markdown(
+    """
+    <div class="action-legend">
+      <span style="color:#DC2626">■ 优先改进</span>
+      <span style="color:#F59E0B">■ 需要关注</span>
+      <span style="color:#16A34A">■ 表现较好</span>
+      <span style="color:#2563EB">■ 描述性</span>
+      <span class="legend-note">红橙绿为当前筛选范围内的相对分位，不代表目标、显著性或因果效应。</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
     st.subheader("筛选")
@@ -251,10 +332,10 @@ with tabs[0]:
         st.subheader("规模与转化趋势")
         render_pair(
             px.bar(monthly, x="月份", y=["线索数", "下订数"], barmode="group", title="月度线索与下订规模"),
-            px.line(monthly, x="月份", y="转化率", markers=True, title="月度转化率"),
+            semantic_line(monthly, x="月份", y="转化率", title="月度转化率", direction="higher"),
         )
         render_pair(
-            px.line(monthly, x="月份", y="有效跟进覆盖率", markers=True, title="月度有效跟进覆盖率"),
+            semantic_line(monthly, x="月份", y="有效跟进覆盖率", title="月度有效跟进覆盖率", direction="higher"),
             px.line(monthly, x="月份", y="每条有效跟进线索跟进次数", markers=True, title="月度有效跟进频次"),
         )
 
@@ -265,7 +346,7 @@ with tabs[0]:
         st.subheader("城市与客户结构")
         render_pair(
             px.bar(city_view.sort_values("线索数", ascending=False), x="城市", y="线索数", title="城市线索规模"),
-            px.bar(city_view.sort_values("转化率", ascending=False), x="城市", y="转化率", title="城市转化率（描述性）"),
+            semantic_bar(city_view.sort_values("转化率", ascending=False), x="城市", y="转化率", title="城市转化率（相对改进优先级）", direction="higher"),
         )
     if not age_view.empty and not gender_view.empty:
         render_pair(
@@ -276,7 +357,7 @@ with tabs[0]:
     if not city_month.empty:
         render_pair(
             heatmap(city_month, "城市", "月份", "线索数", "城市-月份线索量矩阵"),
-            heatmap(city_month, "城市", "月份", "转化率", "城市-月份转化率矩阵", percent=True),
+            heatmap(city_month, "城市", "月份", "转化率", "城市-月份转化率矩阵", percent=True, direction="higher"),
         )
 
     psm = results["psm"]["psm_att"]
@@ -289,18 +370,18 @@ with tabs[1]:
     st.subheader("渠道规模与转化")
     render_pair(
         px.bar(channel_view.sort_values("线索数", ascending=False), x="渠道", y="线索数", title="渠道线索规模"),
-        px.bar(channel_view.sort_values("每百线索订单数", ascending=False), x="渠道", y="每百线索订单数", title="每百线索订单数（不是 ROI）"),
+        semantic_bar(channel_view.sort_values("每百线索订单数", ascending=False), x="渠道", y="每百线索订单数", title="每百线索订单数（相对改进优先级，不是 ROI）", direction="higher"),
     )
     render_pair(
-        px.bar(channel_view.sort_values("有效跟进覆盖率", ascending=False), x="渠道", y="有效跟进覆盖率", title="渠道有效跟进覆盖率"),
+        semantic_bar(channel_view.sort_values("有效跟进覆盖率", ascending=False), x="渠道", y="有效跟进覆盖率", title="渠道有效跟进覆盖率", direction="higher"),
         px.bar(channel_view, x="渠道", y=["转化率", "标准化边际转化率"], barmode="group", title="原始与标准化转化率（关联性）"),
     )
     city_channel = lead_rollup(lead_filtered, ["城市", "渠道"])
     month_channel = lead_rollup(lead_filtered, ["月份", "渠道"])
     if not city_channel.empty and not month_channel.empty:
         render_pair(
-            heatmap(city_channel, "城市", "渠道", "转化率", "城市-渠道转化率矩阵", percent=True),
-            heatmap(month_channel, "月份", "渠道", "转化率", "月份-渠道转化率矩阵", percent=True),
+            heatmap(city_channel, "城市", "渠道", "转化率", "城市-渠道转化率矩阵", percent=True, direction="higher"),
+            heatmap(month_channel, "月份", "渠道", "转化率", "月份-渠道转化率矩阵", percent=True, direction="higher"),
         )
     st.dataframe(channel_view.style.format({"每百线索订单数": "{:.2f}", "标准化边际转化率": "{:.2%}"}), width="stretch", hide_index=True)
     st.info("数据为单一获客渠道，不具备多触点路径；标准化边际转化率与模型特征贡献均不代表渠道因果贡献。费用只有城市—月份总额，因此不计算渠道 ROI/CPO。")
@@ -333,27 +414,28 @@ with tabs[2]:
 with tabs[3]:
     risk = order_rollup(order_filtered, ["城市", "月份"])
     if not risk.empty:
-        risk["风险等级"] = pd.cut(risk["延迟率"], [-0.01, .35, .55, 1.01], labels=["低", "中", "高"])
+        risk["综合风险分位"] = (risk["延迟率"].rank(pct=True) + risk["投诉订单率"].rank(pct=True)) / 2
+        risk["改进状态"] = classify_relative(risk["综合风险分位"], "lower")
         st.subheader("聚合交付风险")
-        render_chart(st, px.scatter(risk, x="延迟率", y="投诉订单率", size="有效订单数", color="风险等级", hover_data=["城市", "月份"], title="城市-月份延迟与投诉风险（聚合关联）"), height=430)
+        render_chart(st, px.scatter(risk, x="延迟率", y="投诉订单率", size="有效订单数", color="改进状态", color_discrete_map=STATUS_COLORS, category_orders={"改进状态": STATUS_ORDER}, hover_data=["城市", "月份"], title="城市-月份延迟与投诉风险（相对改进优先级）"), height=430)
         city_risk = order_rollup(order_filtered, ["城市"])
         month_risk = order_rollup(order_filtered, ["月份"]).sort_values("月份")
         channel_risk = order_rollup(order_filtered, ["渠道"])
         render_pair(
-            px.bar(city_risk.sort_values("延迟率", ascending=False), x="城市", y="延迟率", title="城市延迟交付率"),
-            px.bar(city_risk.sort_values("平均交付评分", ascending=False), x="城市", y="平均交付评分", title="城市平均交付评分"),
+            semantic_bar(city_risk.sort_values("延迟率", ascending=False), x="城市", y="延迟率", title="城市延迟交付率", direction="lower"),
+            semantic_bar(city_risk.sort_values("平均交付评分", ascending=False), x="城市", y="平均交付评分", title="城市平均交付评分", direction="higher"),
         )
-        render_chart(st, px.bar(city_risk.sort_values("投诉订单率", ascending=False), x="城市", y="投诉订单率", title="城市投诉订单率"))
+        render_chart(st, semantic_bar(city_risk.sort_values("投诉订单率", ascending=False), x="城市", y="投诉订单率", title="城市投诉订单率", direction="lower"))
         render_pair(
-            px.line(month_risk, x="月份", y="延迟率", markers=True, title="月度延迟交付率"),
-            px.line(month_risk, x="月份", y="平均交付评分", markers=True, title="月度平均交付评分"),
+            semantic_line(month_risk, x="月份", y="延迟率", title="月度延迟交付率", direction="lower"),
+            semantic_line(month_risk, x="月份", y="平均交付评分", title="月度平均交付评分", direction="higher"),
         )
-        render_chart(st, px.line(month_risk, x="月份", y="投诉订单率", markers=True, title="月度投诉订单率"))
+        render_chart(st, semantic_line(month_risk, x="月份", y="投诉订单率", title="月度投诉订单率", direction="lower"))
         render_pair(
-            px.bar(channel_risk.sort_values("延迟率", ascending=False), x="渠道", y="延迟率", title="渠道来源订单延迟率（描述性）"),
-            px.bar(channel_risk.sort_values("平均交付评分", ascending=False), x="渠道", y="平均交付评分", title="渠道来源订单平均评分（描述性）"),
+            semantic_bar(channel_risk.sort_values("延迟率", ascending=False), x="渠道", y="延迟率", title="渠道来源订单延迟率（描述性优先级）", direction="lower"),
+            semantic_bar(channel_risk.sort_values("平均交付评分", ascending=False), x="渠道", y="平均交付评分", title="渠道来源订单平均评分（描述性优先级）", direction="higher"),
         )
-        render_chart(st, px.bar(channel_risk.sort_values("投诉订单率", ascending=False), x="渠道", y="投诉订单率", title="渠道来源订单投诉率（描述性）"))
+        render_chart(st, semantic_bar(channel_risk.sort_values("投诉订单率", ascending=False), x="渠道", y="投诉订单率", title="渠道来源订单投诉率（描述性优先级）", direction="lower"))
         st.dataframe(risk.style.format({"延迟率": "{:.1%}", "投诉订单率": "{:.1%}"}), width="stretch", hide_index=True)
     delivery = results["delivery"]["delivery_score_adjusted_association"]
     rdd = results["delivery"]["rdd_feasibility"]
@@ -364,16 +446,16 @@ with tabs[4]:
     if not team.empty:
         st.subheader("有效跟进覆盖与容量")
         render_pair(
-            px.bar(team, x="城市", y=["有效跟进覆盖率", "转化率"], barmode="group", title="城市跟进覆盖与转化"),
+            semantic_bar(team, x="城市", y="有效跟进覆盖率", title="城市有效跟进覆盖率（悬停查看转化率）", direction="higher", hover_data=["转化率"]),
             px.bar(team.sort_values("每条有效跟进线索跟进次数", ascending=False), x="城市", y="每条有效跟进线索跟进次数", title="城市有效跟进频次"),
         )
         month_team = lead_rollup(lead_filtered, ["月份"]).sort_values("月份")
         channel_team = lead_rollup(lead_filtered, ["渠道"])
         render_pair(
-            px.line(month_team, x="月份", y="有效跟进覆盖率", markers=True, title="月度有效跟进覆盖率"),
+            semantic_line(month_team, x="月份", y="有效跟进覆盖率", title="月度有效跟进覆盖率", direction="higher"),
             px.line(month_team, x="月份", y="每条有效跟进线索跟进次数", markers=True, title="月度有效跟进频次"),
         )
-        render_chart(st, px.bar(channel_team.sort_values("有效跟进覆盖率", ascending=False), x="渠道", y="有效跟进覆盖率", title="渠道有效跟进覆盖率"))
+        render_chart(st, semantic_bar(channel_team.sort_values("有效跟进覆盖率", ascending=False), x="渠道", y="有效跟进覆盖率", title="渠道有效跟进覆盖率", direction="higher"))
         st.dataframe(team.style.format({"有效跟进覆盖率": "{:.1%}", "每条有效跟进线索跟进次数": "{:.2f}", "转化率": "{:.1%}"}), width="stretch", hide_index=True)
     st.caption("仅统计销售人员入职后且不晚于交付日期的有效跟进；公开模式不展示销售人员或客户明细。")
 
@@ -383,20 +465,22 @@ with tabs[5]:
         view = view[view["城市"].astype(str).isin(city)]
     if channel:
         view = view[view["渠道"].astype(str).isin(channel)]
+    view = view.copy()
     st.subheader("机会优先级")
     if not view.empty:
         ranked = view.sort_values("优先级分", ascending=False).head(15).copy()
         ranked["组合"] = ranked["城市"].astype(str) + " / " + ranked["渠道"].astype(str)
         render_pair(
-            px.bar(ranked.sort_values("优先级分"), x="优先级分", y="组合", orientation="h", title="城市-渠道机会优先级"),
-            px.bar(ranked.sort_values("机会量"), x="机会量", y="组合", orientation="h", title="城市-渠道机会量"),
+            semantic_bar(ranked.sort_values("优先级分"), x="优先级分", y="组合", orientation="h", title="城市-渠道机会优先级", direction="lower"),
+            semantic_bar(ranked.sort_values("机会量"), x="机会量", y="组合", orientation="h", title="城市-渠道机会量", direction="lower"),
         )
-        render_chart(st, px.scatter(view, x="跟进覆盖率", y="转化率", size="线索数", color="渠道", hover_data=["城市", "优先级分"], title="转化率与跟进覆盖的机会分布"), height=430)
+        view["改进状态"] = classify_relative(view["优先级分"], "lower")
+        render_chart(st, px.scatter(view, x="跟进覆盖率", y="转化率", size="线索数", color="改进状态", color_discrete_map=STATUS_COLORS, category_orders={"改进状态": STATUS_ORDER}, hover_data=["城市", "渠道", "优先级分"], title="转化率与跟进覆盖的机会分布"), height=430)
         city_priority = view.groupby("城市", as_index=False).agg(平均优先级分=("优先级分", "mean"), 机会量=("机会量", "sum"))
         channel_priority = view.groupby("渠道", as_index=False).agg(平均优先级分=("优先级分", "mean"), 机会量=("机会量", "sum"))
         render_pair(
-            px.bar(city_priority.sort_values("平均优先级分", ascending=False), x="城市", y="平均优先级分", title="城市平均机会优先级"),
-            px.bar(channel_priority.sort_values("平均优先级分", ascending=False), x="渠道", y="平均优先级分", title="渠道平均机会优先级（不是 ROI）"),
+            semantic_bar(city_priority.sort_values("平均优先级分", ascending=False), x="城市", y="平均优先级分", title="城市平均机会优先级", direction="lower"),
+            semantic_bar(channel_priority.sort_values("平均优先级分", ascending=False), x="渠道", y="平均优先级分", title="渠道平均机会优先级（不是 ROI）", direction="lower"),
         )
         recommendations = view["建议"].value_counts().rename_axis("建议").reset_index(name="组合数")
         render_chart(st, px.bar(recommendations, x="组合数", y="建议", orientation="h", title="机会组合建议构成"))

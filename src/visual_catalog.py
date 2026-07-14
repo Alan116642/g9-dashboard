@@ -13,13 +13,31 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+
+from visual_semantics import (
+    DESCRIPTIVE,
+    GOOD,
+    GOOD_GREEN,
+    IMPROVE,
+    IMPROVE_RED,
+    MUTED_GRAY,
+    NEUTRAL_BLUE,
+    STATUS_COLORS,
+    WATCH,
+    WATCH_AMBER,
+    classify_relative,
+    colors_for,
+    semantic_colorscale,
+)
 
 
-BLUE = "#2563EB"
-GOLD = "#D97706"
+BLUE = NEUTRAL_BLUE
+GOLD = WATCH_AMBER
 INK = "#172033"
 MUTED = "#64748B"
-LIGHT = "#CBD5E1"
+LIGHT = MUTED_GRAY
 
 
 # Forty figures, including the nine core causal/predictive figures created in
@@ -86,10 +104,35 @@ def _clean_axis(ax, xlabel: str | None = None, ylabel: str | None = None) -> Non
         ax.set_ylabel(ylabel)
 
 
-def _bar(frame: pd.DataFrame, category: str, value: str, title: str, ylabel: str, chart_dir: Path, filename: str, percent: bool = False, digits: int = 0) -> Path:
+def _add_action_legend(ax, include_baseline: bool = False) -> None:
+    handles = [Patch(color=STATUS_COLORS[label], label=label) for label in (IMPROVE, WATCH, GOOD)]
+    if include_baseline:
+        handles.append(Line2D([0], [0], color=MUTED, linestyle="--", label="总体基准"))
+    ax.legend(
+        handles=handles,
+        frameon=False,
+        ncol=3,
+        fontsize=8.5,
+        loc="best",
+    )
+
+
+def _bar(
+    frame: pd.DataFrame,
+    category: str,
+    value: str,
+    title: str,
+    ylabel: str,
+    chart_dir: Path,
+    filename: str,
+    percent: bool = False,
+    digits: int = 0,
+    direction: str | None = None,
+) -> Path:
     data = frame.sort_values(value, ascending=False)
     fig, ax = plt.subplots(figsize=(9.5, 5.2))
-    bars = ax.bar(data[category].astype(str), data[value], color=BLUE, edgecolor="#1D4ED8", linewidth=0.5)
+    bar_colors = colors_for(data[value], direction) if direction else [BLUE] * len(data)
+    bars = ax.bar(data[category].astype(str), data[value], color=bar_colors, edgecolor="white", linewidth=0.7)
     ax.set_title(title)
     _clean_axis(ax, ylabel=ylabel)
     ax.tick_params(axis="x", rotation=25)
@@ -97,14 +140,37 @@ def _bar(frame: pd.DataFrame, category: str, value: str, title: str, ylabel: str
     ax.bar_label(bars, labels=labels, padding=3, fontsize=8.5, color=INK)
     if percent:
         ax.set_ylim(0, max(float(data[value].max()) * 1.22, 0.05))
+    if direction:
+        ax.legend(
+            handles=[Patch(color=STATUS_COLORS[label], label=label) for label in (IMPROVE, WATCH, GOOD)],
+            frameon=False,
+            ncol=3,
+            loc="upper right",
+            fontsize=8.5,
+        )
     return _save(fig, chart_dir, filename)
 
 
-def _heatmap(frame: pd.DataFrame, index: str, columns: str, values: str, title: str, chart_dir: Path, filename: str, percent: bool = False) -> Path:
+def _heatmap(
+    frame: pd.DataFrame,
+    index: str,
+    columns: str,
+    values: str,
+    title: str,
+    chart_dir: Path,
+    filename: str,
+    percent: bool = False,
+    direction: str | None = None,
+) -> Path:
     pivot = frame.pivot(index=index, columns=columns, values=values)
     fig, ax = plt.subplots(figsize=(10.5, 5.5))
     matrix = pivot.to_numpy(dtype=float)
-    image = ax.imshow(matrix, aspect="auto", cmap="Blues")
+    cmap = semantic_colorscale(direction) if direction else "Blues"
+    if direction:
+        from matplotlib.colors import LinearSegmentedColormap
+
+        cmap = LinearSegmentedColormap.from_list("action_semantics", [item[1] for item in cmap])
+    image = ax.imshow(matrix, aspect="auto", cmap=cmap)
     ax.set_title(title)
     ax.set_xticks(np.arange(len(pivot.columns)), pivot.columns.astype(str), rotation=35, ha="right")
     ax.set_yticks(np.arange(len(pivot.index)), pivot.index.astype(str))
@@ -146,27 +212,32 @@ def build_extended_charts(bundle: Any, analysis: dict[str, Any], chart_dir: Path
     output["monthly_leads_orders"] = _save(fig, chart_dir, "w5_10_monthly_leads_orders.png")
 
     fig, ax = plt.subplots(figsize=(10, 5.1))
-    ax.plot(monthly["月份"], monthly["转化率"] * 100, marker="o", color=BLUE, linewidth=2.2)
+    conversion_values = monthly["转化率"] * 100
+    ax.plot(monthly["月份"], conversion_values, color=MUTED_GRAY, linewidth=1.8)
+    ax.scatter(monthly["月份"], conversion_values, color=colors_for(conversion_values, "higher"), s=55, zorder=3)
     ax.axhline(leads["是否下订"].mean() * 100, color=MUTED, linestyle="--", label="总体")
-    ax.set_title("月度下订转化率"); ax.tick_params(axis="x", rotation=35); ax.legend(frameon=False)
+    ax.set_title("月度下订转化率"); ax.tick_params(axis="x", rotation=35); _add_action_legend(ax, include_baseline=True)
     _clean_axis(ax, ylabel="转化率（%）")
     output["monthly_conversion"] = _save(fig, chart_dir, "w5_11_monthly_conversion.png")
 
     fig, ax = plt.subplots(figsize=(10, 5.1))
-    ax.plot(monthly["月份"], monthly["有效跟进覆盖率"] * 100, marker="o", color=GOLD, linewidth=2.2)
+    coverage_values = monthly["有效跟进覆盖率"] * 100
+    ax.plot(monthly["月份"], coverage_values, color=MUTED_GRAY, linewidth=1.8)
+    ax.scatter(monthly["月份"], coverage_values, color=colors_for(coverage_values, "higher"), s=55, zorder=3)
+    _add_action_legend(ax)
     ax.set_title("月度有效跟进覆盖率"); ax.tick_params(axis="x", rotation=35); _clean_axis(ax, ylabel="覆盖率（%）")
     output["monthly_followup_coverage"] = _save(fig, chart_dir, "w5_12_monthly_followup_coverage.png")
 
     city = _group_metrics(leads, "城市")
     output["city_leads"] = _bar(city, "城市", "线索数", "城市线索规模", "线索数", chart_dir, "w5_13_city_leads.png")
-    output["city_conversion"] = _bar(city, "城市", "转化率", "城市转化率（描述性）", "转化率", chart_dir, "w5_14_city_conversion.png", percent=True)
-    output["city_followup_coverage"] = _bar(city, "城市", "有效跟进覆盖率", "城市有效跟进覆盖率", "覆盖率", chart_dir, "w5_15_city_followup_coverage.png", percent=True)
+    output["city_conversion"] = _bar(city, "城市", "转化率", "城市转化率（描述性）", "转化率", chart_dir, "w5_14_city_conversion.png", percent=True, direction="higher")
+    output["city_followup_coverage"] = _bar(city, "城市", "有效跟进覆盖率", "城市有效跟进覆盖率", "覆盖率", chart_dir, "w5_15_city_followup_coverage.png", percent=True, direction="higher")
 
     channel = _group_metrics(leads, "渠道")
     channel["每百线索订单数"] = channel["下订数"] / channel["线索数"] * 100
     output["channel_lead_mix"] = _bar(channel, "渠道", "线索数", "渠道线索规模", "线索数", chart_dir, "w5_16_channel_lead_mix.png")
-    output["channel_followup_coverage"] = _bar(channel, "渠道", "有效跟进覆盖率", "渠道有效跟进覆盖率", "覆盖率", chart_dir, "w5_17_channel_followup_coverage.png", percent=True)
-    output["channel_orders_per_100"] = _bar(channel, "渠道", "每百线索订单数", "渠道每百线索订单数（不是 ROI）", "每百线索订单数", chart_dir, "w5_18_channel_orders_per_100.png", digits=1)
+    output["channel_followup_coverage"] = _bar(channel, "渠道", "有效跟进覆盖率", "渠道有效跟进覆盖率", "覆盖率", chart_dir, "w5_17_channel_followup_coverage.png", percent=True, direction="higher")
+    output["channel_orders_per_100"] = _bar(channel, "渠道", "每百线索订单数", "渠道每百线索订单数（不是 ROI）", "每百线索订单数", chart_dir, "w5_18_channel_orders_per_100.png", digits=1, direction="higher")
 
     age = _group_metrics(leads, "年龄段")
     gender = _group_metrics(leads, "客户性别")
@@ -197,19 +268,24 @@ def build_extended_charts(bundle: Any, analysis: dict[str, Any], chart_dir: Path
     cc = leads.groupby(["城市", "渠道"], as_index=False).agg(线索数=("线索ID", "nunique"), 转化率=("是否下订", "mean"))
     mc = leads.groupby(["月份", "渠道"], as_index=False).agg(线索数=("线索ID", "nunique"), 转化率=("是否下订", "mean"))
     cm = leads.groupby(["城市", "月份"], as_index=False).agg(线索数=("线索ID", "nunique"), 转化率=("是否下订", "mean"))
-    output["city_channel_conversion_heatmap"] = _heatmap(cc, "城市", "渠道", "转化率", "城市-渠道转化率矩阵", chart_dir, "w5_25_city_channel_conversion_heatmap.png", percent=True)
-    output["month_channel_conversion_heatmap"] = _heatmap(mc, "月份", "渠道", "转化率", "月份-渠道转化率矩阵", chart_dir, "w5_26_month_channel_conversion_heatmap.png", percent=True)
+    output["city_channel_conversion_heatmap"] = _heatmap(cc, "城市", "渠道", "转化率", "城市-渠道转化率矩阵", chart_dir, "w5_25_city_channel_conversion_heatmap.png", percent=True, direction="higher")
+    output["month_channel_conversion_heatmap"] = _heatmap(mc, "月份", "渠道", "转化率", "月份-渠道转化率矩阵", chart_dir, "w5_26_month_channel_conversion_heatmap.png", percent=True, direction="higher")
     output["city_month_leads_heatmap"] = _heatmap(cm, "城市", "月份", "线索数", "城市-月份线索量矩阵", chart_dir, "w5_27_city_month_leads_heatmap.png")
-    output["city_month_conversion_heatmap"] = _heatmap(cm, "城市", "月份", "转化率", "城市-月份转化率矩阵", chart_dir, "w5_28_city_month_conversion_heatmap.png", percent=True)
+    output["city_month_conversion_heatmap"] = _heatmap(cm, "城市", "月份", "转化率", "城市-月份转化率矩阵", chart_dir, "w5_28_city_month_conversion_heatmap.png", percent=True, direction="higher")
 
     quality = pd.DataFrame({"订单状态": ["唯一订单", "无关键冲突", "关键冲突"], "订单数": [len(orders_all), len(orders), int(orders_all["关键冲突"].sum())]})
-    output["order_quality_flow"] = _bar(quality, "订单状态", "订单数", "订单质量筛选构成", "订单数", chart_dir, "w5_29_order_quality_flow.png")
+    fig, ax = plt.subplots(figsize=(9.5, 5.2))
+    quality_bars = ax.bar(quality["订单状态"], quality["订单数"], color=[BLUE, GOOD_GREEN, IMPROVE_RED], edgecolor="white")
+    ax.bar_label(quality_bars, labels=[f"{v:,.0f}" for v in quality["订单数"]], padding=3, fontsize=8.5, color=INK)
+    ax.set_title("订单质量筛选构成"); _clean_axis(ax, ylabel="订单数")
+    ax.legend(handles=[Patch(color=GOOD_GREEN, label="可进入主分析"), Patch(color=IMPROVE_RED, label="优先修复")], frameon=False)
+    output["order_quality_flow"] = _save(fig, chart_dir, "w5_29_order_quality_flow.png")
 
     conflicts = pd.Series(bundle.audit["order_conflicts"], name="冲突订单数").rename_axis("字段").reset_index()
-    output["order_conflict_types"] = _bar(conflicts, "字段", "冲突订单数", "交付字段冲突数量", "订单数", chart_dir, "w5_30_order_conflict_types.png")
+    output["order_conflict_types"] = _bar(conflicts, "字段", "冲突订单数", "交付字段冲突数量", "订单数", chart_dir, "w5_30_order_conflict_types.png", direction="lower")
     temporal = pd.Series(bundle.audit["temporal_issues"], name="数量").rename_axis("问题").reset_index()
     temporal["问题"] = temporal["问题"].map({"followups_before_hire": "入职前跟进", "followups_after_delivery": "交付后跟进", "leads_with_ambiguous_first_day_method": "首次同日多方式", "orders_with_ticket_before_delivery": "工单早于交付"}).fillna(temporal["问题"])
-    output["temporal_issues"] = _bar(temporal, "问题", "数量", "异常时序审计", "记录/对象数", chart_dir, "w5_31_temporal_issues.png")
+    output["temporal_issues"] = _bar(temporal, "问题", "数量", "异常时序审计", "记录/对象数", chart_dir, "w5_31_temporal_issues.png", direction="lower")
 
     def order_group(group: str) -> pd.DataFrame:
         return orders.groupby(group, as_index=False).agg(
@@ -222,26 +298,34 @@ def build_extended_charts(bundle: Any, analysis: dict[str, Any], chart_dir: Path
     order_city = order_group("城市")
     order_config = order_group("配置")
     order_month = order_group("交付月份").sort_values("交付月份")
-    output["city_delay_rate"] = _bar(order_city, "城市", "延迟率", "城市延迟交付率（无冲突订单）", "延迟率", chart_dir, "w5_32_city_delay_rate.png", percent=True)
-    output["city_delivery_score"] = _bar(order_city, "城市", "平均评分", "城市平均交付评分（无冲突订单）", "评分", chart_dir, "w5_33_city_delivery_score.png", digits=2)
-    output["city_complaint_rate"] = _bar(order_city, "城市", "投诉订单率", "城市投诉订单率（无冲突订单）", "投诉订单率", chart_dir, "w5_34_city_complaint_rate.png", percent=True)
-    output["config_delay_rate"] = _bar(order_config, "配置", "延迟率", "配置延迟交付率（无冲突订单）", "延迟率", chart_dir, "w5_35_config_delay_rate.png", percent=True)
-    output["config_delivery_score"] = _bar(order_config, "配置", "平均评分", "配置平均交付评分（无冲突订单）", "评分", chart_dir, "w5_36_config_delivery_score.png", digits=2)
+    output["city_delay_rate"] = _bar(order_city, "城市", "延迟率", "城市延迟交付率（无冲突订单）", "延迟率", chart_dir, "w5_32_city_delay_rate.png", percent=True, direction="lower")
+    output["city_delivery_score"] = _bar(order_city, "城市", "平均评分", "城市平均交付评分（无冲突订单）", "评分", chart_dir, "w5_33_city_delivery_score.png", digits=2, direction="higher")
+    output["city_complaint_rate"] = _bar(order_city, "城市", "投诉订单率", "城市投诉订单率（无冲突订单）", "投诉订单率", chart_dir, "w5_34_city_complaint_rate.png", percent=True, direction="lower")
+    output["config_delay_rate"] = _bar(order_config, "配置", "延迟率", "配置延迟交付率（无冲突订单）", "延迟率", chart_dir, "w5_35_config_delay_rate.png", percent=True, direction="lower")
+    output["config_delivery_score"] = _bar(order_config, "配置", "平均评分", "配置平均交付评分（无冲突订单）", "评分", chart_dir, "w5_36_config_delivery_score.png", digits=2, direction="higher")
 
     fig, ax = plt.subplots(figsize=(10, 5.1))
-    ax.plot(order_month["交付月份"], order_month["延迟率"] * 100, marker="o", color=GOLD, linewidth=2.2)
+    delay_values = order_month["延迟率"] * 100
+    ax.plot(order_month["交付月份"], delay_values, color=MUTED_GRAY, linewidth=1.8)
+    ax.scatter(order_month["交付月份"], delay_values, color=colors_for(delay_values, "lower"), s=55, zorder=3)
+    _add_action_legend(ax)
     ax.set_title("月度延迟交付率（无冲突订单）"); ax.tick_params(axis="x", rotation=35); _clean_axis(ax, ylabel="延迟率（%）")
     output["monthly_delay_rate"] = _save(fig, chart_dir, "w5_37_monthly_delay_rate.png")
 
     fig, ax = plt.subplots(figsize=(10, 5.1))
-    ax.plot(order_month["交付月份"], order_month["平均评分"], marker="o", color=BLUE, linewidth=2.2)
+    score_values = order_month["平均评分"]
+    ax.plot(order_month["交付月份"], score_values, color=MUTED_GRAY, linewidth=1.8)
+    ax.scatter(order_month["交付月份"], score_values, color=colors_for(score_values, "higher"), s=55, zorder=3)
+    _add_action_legend(ax)
     ax.set_title("月度平均交付评分（无冲突订单）"); ax.tick_params(axis="x", rotation=35); _clean_axis(ax, ylabel="评分")
     output["monthly_delivery_score"] = _save(fig, chart_dir, "w5_38_monthly_delivery_score.png")
 
     risk = orders.groupby(["城市", "交付月份"], as_index=False).agg(有效订单数=("订单ID", "nunique"), 延迟率=("是否延迟交付", "mean"), 投诉订单率=("有投诉", "mean"))
     fig, ax = plt.subplots(figsize=(9.5, 5.7))
     sizes = 30 + 220 * risk["有效订单数"] / risk["有效订单数"].max()
-    ax.scatter(risk["延迟率"] * 100, risk["投诉订单率"] * 100, s=sizes, alpha=0.65, color=BLUE, edgecolor="white", linewidth=0.7)
+    risk_score = (risk["延迟率"].rank(pct=True) + risk["投诉订单率"].rank(pct=True)) / 2
+    ax.scatter(risk["延迟率"] * 100, risk["投诉订单率"] * 100, s=sizes, alpha=0.72, color=colors_for(risk_score, "lower"), edgecolor="white", linewidth=0.7)
+    _add_action_legend(ax)
     ax.set_title("城市-月份延迟与投诉风险（聚合关联）"); _clean_axis(ax, xlabel="延迟率（%）", ylabel="投诉订单率（%）")
     output["risk_scatter"] = _save(fig, chart_dir, "w5_39_risk_scatter.png")
 
