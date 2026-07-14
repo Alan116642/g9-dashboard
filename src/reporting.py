@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import nbformat as nbf
 import numpy as np
 import pandas as pd
+from matplotlib.patches import Patch
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
@@ -22,16 +23,28 @@ from docx.shared import Inches, Pt, RGBColor
 
 from g9_pipeline import CHART_DIR, PRIVATE_DIR, REPORTS_DIR, ROOT, CleanBundle, json_ready
 from visual_catalog import WHITEPAPER_CHART_SEQUENCE, build_extended_charts
+from visual_semantics import (
+    GOOD,
+    GOOD_GREEN,
+    IMPROVE,
+    IMPROVE_RED,
+    MUTED_GRAY,
+    NEUTRAL_BLUE,
+    STATUS_COLORS,
+    WATCH,
+    WATCH_AMBER,
+    colors_for,
+)
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
 
-BLUE = "2E74B5"
+BLUE = NEUTRAL_BLUE.lstrip("#")
 DARK_BLUE = "1F4D78"
 INK = "172033"
 MUTED = "64748B"
 LIGHT = "F2F4F7"
-GOLD = "B7791F"
+GOLD = WATCH_AMBER.lstrip("#")
 
 
 def _save(fig: plt.Figure, name: str) -> Path:
@@ -59,8 +72,8 @@ def build_charts(charts: dict[str, pd.DataFrame], bundle: CleanBundle, analysis:
     fig, ax = plt.subplots(figsize=(10, 7))
     y = np.arange(len(balance))
     ax.scatter(balance["匹配前SMD"].abs(), y, label="匹配前", color="#94A3B8", s=40)
-    ax.scatter(balance["匹配后SMD"].abs(), y, label="匹配后", color="#2563EB", s=45)
-    ax.axvline(0.1, color="#B91C1C", linestyle="--", linewidth=1.3, label="|SMD|=0.1")
+    ax.scatter(balance["匹配后SMD"].abs(), y, label="匹配后（通过）", color=GOOD_GREEN, s=45)
+    ax.axvline(0.1, color=IMPROVE_RED, linestyle="--", linewidth=1.3, label="需改进阈值 |SMD|=0.1")
     ax.set_yticks(y, balance["协变量"]); ax.set(xlabel="绝对标准化均值差", title="匹配前后协变量平衡")
     ax.legend(frameon=False); ax.spines[["top", "right"]].set_visible(False)
     output["balance"] = _save(fig, "w2_02_love_plot.png")
@@ -68,10 +81,10 @@ def build_charts(charts: dict[str, pd.DataFrame], bundle: CleanBundle, analysis:
     effects = charts["effects"]
     fig, ax = plt.subplots(figsize=(9, 4.6))
     y = np.arange(len(effects))
-    ax.errorbar(effects["估计"], y, xerr=[effects["估计"] - effects["下限"], effects["上限"] - effects["估计"]], fmt="o", color="#2563EB", ecolor="#64748B", capsize=5)
+    ax.errorbar(effects["估计"], y, xerr=[effects["估计"] - effects["下限"], effects["上限"] - effects["估计"]], fmt="o", color=WATCH_AMBER, ecolor=MUTED_GRAY, capsize=5, label="需要关注：区间跨零")
     ax.axvline(0, color="#111827", linestyle="--", linewidth=1)
     ax.set_yticks(y, effects["方法"]); ax.set(xlabel="下订概率差", title="跟进方式效应估计与 95% 置信区间")
-    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(frameon=False); ax.spines[["top", "right"]].set_visible(False)
     output["effects"] = _save(fig, "w2_03_followup_effects.png")
 
     sensitivity = charts["sensitivity"]
@@ -94,26 +107,38 @@ def build_charts(charts: dict[str, pd.DataFrame], bundle: CleanBundle, analysis:
         estimate = (frame["估计"] * scale).to_numpy(dtype=float)
         lower = (frame["下限"] * scale).to_numpy(dtype=float)
         upper = (frame["上限"] * scale).to_numpy(dtype=float)
-        ax.errorbar(estimate, y, xerr=[estimate - lower, upper - estimate], fmt="o", color="#D97706", ecolor="#64748B", capsize=5)
+        ax.errorbar(estimate, y, xerr=[estimate - lower, upper - estimate], fmt="o", color=WATCH_AMBER, ecolor=MUTED_GRAY, capsize=5)
         ax.axvline(0, color="#111827", linestyle="--", linewidth=1)
         ax.set_yticks(y, frame["结果"]); ax.set(xlabel=xlabel, title=title)
         ax.spines[["top", "right"]].set_visible(False)
+    fig.legend(handles=[Patch(color=WATCH_AMBER, label="需要关注：置信区间跨零")], frameon=False, loc="upper center", bbox_to_anchor=(0.5, 0.94))
     fig.suptitle("延迟交付与结果变量的估计（不同单位分面展示）")
     fig.tight_layout()
     output["delivery"] = _save(fig, "w2_05_delivery_associations.png")
 
     channel = charts["channel_descriptive"].sort_values("转化率")
     fig, ax = plt.subplots(figsize=(9, 5))
-    xerr = np.vstack([channel["转化率"] - channel["置信区间下限"], channel["置信区间上限"] - channel["转化率"]])
-    ax.errorbar(channel["转化率"] * 100, np.arange(len(channel)), xerr=xerr * 100, fmt="o", color="#2563EB", ecolor="#94A3B8", capsize=4)
+    channel_colors = colors_for(channel["转化率"], "higher")
+    for idx, (_, row) in enumerate(channel.iterrows()):
+        ax.errorbar(
+            row["转化率"] * 100,
+            idx,
+            xerr=[[max(0.0, (row["转化率"] - row["置信区间下限"]) * 100)], [max(0.0, (row["置信区间上限"] - row["转化率"]) * 100)]],
+            fmt="o",
+            color=channel_colors[idx],
+            ecolor=MUTED_GRAY,
+            capsize=4,
+        )
     ax.set_yticks(np.arange(len(channel)), channel["渠道"]); ax.set(xlabel="转化率（%）", title="渠道转化率及 Wilson 95% 置信区间")
+    ax.legend(handles=[Patch(color=STATUS_COLORS[label], label=label) for label in (IMPROVE, WATCH, GOOD)], frameon=False)
     ax.spines[["top", "right"]].set_visible(False)
     output["channel"] = _save(fig, "w2_06_channel_conversion.png")
 
     standardized = charts["channel_standardized"].sort_values("标准化边际转化率")
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.barh(standardized["渠道"], standardized["标准化边际转化率"] * 100, color="#2563EB")
+    ax.barh(standardized["渠道"], standardized["标准化边际转化率"] * 100, color=colors_for(standardized["标准化边际转化率"], "higher"))
     ax.set(xlabel="标准化边际转化率（%）", title="渠道调整后边际转化率（关联性）")
+    ax.legend(handles=[Patch(color=STATUS_COLORS[label], label=label) for label in (IMPROVE, WATCH, GOOD)], frameon=False)
     ax.spines[["top", "right"]].set_visible(False)
     output["channel_standardized"] = _save(fig, "w2_07_channel_standardized.png")
 
@@ -128,15 +153,24 @@ def build_charts(charts: dict[str, pd.DataFrame], bundle: CleanBundle, analysis:
     strategy = charts["strategy"].head(12).sort_values("优先级分")
     labels = strategy["城市"] + " / " + strategy["渠道"]
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.barh(labels, strategy["优先级分"], color="#D97706")
+    ax.barh(labels, strategy["优先级分"], color=colors_for(strategy["优先级分"], "lower"))
     ax.set(xlabel="机会优先级分（非预算 ROI）", title="城市 × 渠道运营机会排序")
+    ax.legend(handles=[Patch(color=STATUS_COLORS[label], label=label) for label in (IMPROVE, WATCH, GOOD)], frameon=False)
     ax.spines[["top", "right"]].set_visible(False)
     output["strategy"] = _save(fig, "w4_01_opportunity_priority.png")
 
     output.update(build_extended_charts(bundle, analysis, CHART_DIR))
 
     chart_map = {
-        key: {"path": str(path.relative_to(ROOT)), "source": "data/processed/analysis_results.json and derived private aggregates", "purpose": key}
+        key: {
+            "path": str(path.relative_to(ROOT)),
+            "source": "data/processed/analysis_results.json and derived private aggregates",
+            "purpose": key,
+            "palette_policy": (
+                "red=优先改进; amber=需要关注; green=表现较好; "
+                "blue/gray=描述性或不可判优劣; 红橙绿为图内相对分位，非目标、显著性或因果效应"
+            ),
+        }
         for key, path in output.items()
     }
     for position, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
@@ -255,6 +289,16 @@ def _add_result_table(doc: Document, rows: list[list[str]]):
     doc.add_paragraph()
 
 
+def _add_color_legend(doc: Document) -> None:
+    p = doc.add_paragraph(); p.paragraph_format.space_after = Pt(8)
+    _set_run(p.add_run("■ 优先改进  "), size=10, bold=True, color=IMPROVE_RED.lstrip("#"))
+    _set_run(p.add_run("■ 需要关注  "), size=10, bold=True, color=WATCH_AMBER.lstrip("#"))
+    _set_run(p.add_run("■ 表现较好  "), size=10, bold=True, color=GOOD_GREEN.lstrip("#"))
+    _set_run(p.add_run("■ 描述性/不可判优劣"), size=10, bold=True, color=NEUTRAL_BLUE.lstrip("#"))
+    p = doc.add_paragraph()
+    _set_run(p.add_run("红橙绿按同一张图中的相对分位识别改进优先级，不是业务目标、显著性或因果效应；蓝灰图只用于描述结构。"), size=9.5, color=MUTED)
+
+
 def _pp(value: float | None) -> str:
     return "不可估计" if value is None else f"{value * 100:+.2f} 个百分点"
 
@@ -315,6 +359,7 @@ def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images:
     ])
     doc.add_heading("如何阅读这 40 张图", level=1)
     p = doc.add_paragraph(); _set_run(p.add_run(f"交付表中 {audit['critical_conflict_orders']:,}/{audit['row_counts']['unique_orders']:,} 个唯一订单存在关键字段冲突。图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层；每张图旁均标明其可支持与不可支持的解释。"))
+    _add_color_legend(doc)
     current_section = None
     for figure_no, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
         if spec["section"] != current_section:
@@ -346,7 +391,7 @@ def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images:
     _add_bullets(doc, ["公开看板使用样本量阈值为 10 的脱敏汇总数据。", "预测重要性不是因果贡献。", "机会优先级不是预算 ROI，也不等于预期增量订单。", "原始 Excel 未被修改。"])
     docx_path = REPORTS_DIR / "W5_sales_operations_white_paper.docx"; doc.save(docx_path)
 
-    md = ["# G9 销售运营证据白皮书", "", "## Executive Summary", "", f"- 面谈 ATT：{_pp(psm['estimate'])}，95% CI {_ci_pp(psm['ci95'])}，未发现可靠增益。", f"- 时间外 ROC AUC：{model['roc_auc']:.3f}，公开看板不提供逐客户预测。", "- RDD、多触点 Shapley 和渠道 ROI 均因数据条件不足而停用。", f"- 白皮书包含 {len(WHITEPAPER_CHART_SEQUENCE)} 张审计后分析图，每张图均配有证据边界说明。", "", "## 图表目录", ""]
+    md = ["# G9 销售运营证据白皮书", "", "## Executive Summary", "", f"- 面谈 ATT：{_pp(psm['estimate'])}，95% CI {_ci_pp(psm['ci95'])}，未发现可靠增益。", f"- 时间外 ROC AUC：{model['roc_auc']:.3f}，公开看板不提供逐客户预测。", "- RDD、多触点 Shapley 和渠道 ROI 均因数据条件不足而停用。", f"- 白皮书包含 {len(WHITEPAPER_CHART_SEQUENCE)} 张审计后分析图，每张图均配有证据边界说明。", "", "## 颜色图例", "", "- 🟥 优先改进", "- 🟧 需要关注", "- 🟩 表现较好", "- 🟦 描述性/不可判优劣", "", "红橙绿按同一张图中的相对分位识别改进优先级，不是业务目标、显著性或因果效应。", "", "## 图表目录", ""]
     for i, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
         md.append(f"{i}. **{spec['caption']}**：{spec['note']}")
     md += ["", "## 行动", "", "1. 补齐下订、承诺交付和实际交付时间戳。", "2. 运行随机化跟进方式试点。", "3. 建立渠道级花费与触点路径。", ""]
@@ -455,7 +500,13 @@ def generate_pdf_reports(analysis: dict[str, Any], audit: dict[str, Any], images
     white = [Paragraph("G9 销售运营证据白皮书", styles["title"]), Paragraph("Executive Summary", styles["h1"])]
     for item in [f"• 面谈 ATT 为 {_pp(psm['estimate'])}，不支持确定性扩张。", f"• 时间外 ROC AUC 为 {model['roc_auc']:.3f}，公开看板关闭逐客户预测。", "• 交付表关键冲突严重，延迟指标只使用无冲突订单。", "• 预算 ROI 改为机会优先级，所有建议需通过试验验证。"]:
         white.append(Paragraph(item, styles["bullet"]))
-    white += [Paragraph("如何阅读这 40 张图", styles["h1"]), Paragraph("图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层。图旁说明明确限制其解释边界，避免把相关性包装为因果结论。", styles["body"]), PageBreak()]
+    color_legend = (
+        f'<font color="{IMPROVE_RED}"><b>■ 优先改进</b></font>　'
+        f'<font color="{WATCH_AMBER}"><b>■ 需要关注</b></font>　'
+        f'<font color="{GOOD_GREEN}"><b>■ 表现较好</b></font>　'
+        f'<font color="{NEUTRAL_BLUE}"><b>■ 描述性</b></font>'
+    )
+    white += [Paragraph("如何阅读这 40 张图", styles["h1"]), Paragraph("图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层。图旁说明明确限制其解释边界，避免把相关性包装为因果结论。", styles["body"]), Paragraph(color_legend, styles["body"]), Paragraph("红橙绿按同图相对分位识别改进优先级，不代表业务目标、显著性或因果效应；蓝灰图只作描述。", styles["body"]), PageBreak()]
     current_section = None
     for figure_no, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
         if spec["section"] != current_section:

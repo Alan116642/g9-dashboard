@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import g9_pipeline as gp
 from visual_catalog import WHITEPAPER_CHART_SEQUENCE
+from visual_semantics import GOOD, IMPROVE, WATCH, classify_relative
 
 
 REQUIRED_RESULT_KEYS = {
@@ -80,6 +81,11 @@ def test_whitepaper_visual_catalog_matches_legacy_volume():
     assert len(keys) >= 40
     assert len(keys) == len(set(keys))
     assert {"effects", "delivery", "channel_raw_vs_standardized", "strategy"}.issubset(keys)
+
+
+def test_action_colors_follow_metric_direction():
+    assert classify_relative([10, 20, 30], "higher") == [IMPROVE, WATCH, GOOD]
+    assert classify_relative([10, 20, 30], "lower") == [GOOD, WATCH, IMPROVE]
 
 
 def test_dashboard_renders_six_pages_and_40_charts(monkeypatch):
