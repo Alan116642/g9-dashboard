@@ -76,11 +76,13 @@ def test_rdd_is_blocked_without_valid_assignment_variable():
     assert rdd["evidence_level"] == "not_identified"
 
 
-def test_whitepaper_visual_catalog_matches_legacy_volume():
+def test_whitepaper_visual_catalog_has_expanded_chinese_volume():
     keys = [item["key"] for item in WHITEPAPER_CHART_SEQUENCE]
-    assert len(keys) >= 40
+    assert len(keys) == 54
     assert len(keys) == len(set(keys))
-    assert {"effects", "delivery", "channel_raw_vs_standardized", "strategy"}.issubset(keys)
+    assert {"effects", "delivery", "channel_raw_vs_standardized", "strategy", "business_funnel", "monthly_complaint_rate"}.issubset(keys)
+    visible_copy = " ".join(item["caption"] + item["note"] for item in WHITEPAPER_CHART_SEQUENCE)
+    assert not any(term in visible_copy for term in ["ROI", "PSM", "AIPW", "Wilson", "ROC", "AUC", "SMD", "ATT"])
 
 
 def test_action_colors_follow_metric_direction():
