@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import g9_pipeline as gp
-from visual_catalog import WHITEPAPER_CHART_SEQUENCE
+from visual_catalog import WHITEPAPER_CHART_SEQUENCE, WHITEPAPER_TASK_CHART_KEYS, WHITEPAPER_TASK_SECTIONS
 from visual_semantics import GOOD, IMPROVE, WATCH, classify_relative
 
 
@@ -83,6 +83,17 @@ def test_whitepaper_visual_catalog_has_expanded_chinese_volume():
     assert {"effects", "delivery", "channel_raw_vs_standardized", "strategy", "business_funnel", "monthly_complaint_rate"}.issubset(keys)
     visible_copy = " ".join(item["caption"] + item["note"] for item in WHITEPAPER_CHART_SEQUENCE)
     assert not any(term in visible_copy for term in ["ROI", "PSM", "AIPW", "Wilson", "ROC", "AUC", "SMD", "ATT"])
+    assert list(WHITEPAPER_TASK_SECTIONS) == [
+        "W1 数据清洗与数据仓库建设",
+        "W2 因果推断与归因分析",
+        "W3 预测建模与智能预警",
+        "W4 策略仿真与优化",
+        "W5 决策看板与落地汇报",
+    ]
+    assert all(len(chart_keys) >= 8 for chart_keys in WHITEPAPER_TASK_CHART_KEYS.values())
+    assert [item["section"] for item in WHITEPAPER_CHART_SEQUENCE] == [
+        task for task, chart_keys in WHITEPAPER_TASK_CHART_KEYS.items() for _ in chart_keys
+    ]
 
 
 def test_action_colors_follow_metric_direction():
