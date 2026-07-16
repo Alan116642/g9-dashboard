@@ -22,7 +22,12 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from g9_pipeline import CHART_DIR, PRIVATE_DIR, REPORTS_DIR, ROOT, CleanBundle, json_ready
-from visual_catalog import WHITEPAPER_CHART_SEQUENCE, build_extended_charts
+from visual_catalog import (
+    WHITEPAPER_CHART_SEQUENCE,
+    WHITEPAPER_TASK_CHART_KEYS,
+    WHITEPAPER_TASK_SECTIONS,
+    build_extended_charts,
+)
 from visual_semantics import (
     GOOD,
     GOOD_GREEN,
@@ -358,7 +363,7 @@ def generate_w2_docx(analysis: dict[str, Any], audit: dict[str, Any], images: di
 
 def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images: dict[str, Path], strategy: pd.DataFrame) -> tuple[Path, Path]:
     psm = analysis["psm"]["psm_att"]; model = analysis["model"]["metrics"]
-    doc = _setup_doc("G9 销售运营证据白皮书", "从数据质量、因果识别到可执行运营验证", "W5 白皮书")
+    doc = _setup_doc("G9 智能销售运营决策白皮书", "按五周任务分块：数据治理、因果归因、预测预警、策略优化与看板落地", "W5 白皮书")
     doc.add_heading("执行摘要", level=1)
     _add_bullets(doc, [
         "当前最重要的改进不是扩大某个渠道或跟进方式，而是先修复交付粒度并补齐关键时间戳。",
@@ -366,14 +371,34 @@ def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images:
         f"时间外受试者工作特征曲线下面积为 {model['roc_auc']:.3f}，接近随机水平；公开看板关闭逐客户预测，本地模型仅保留为验证基线。",
         "渠道费用无法分配到渠道，预算建议已替换为基于规模、转化、跟进覆盖和机会量的优先级排序。",
     ])
-    doc.add_heading(f"如何阅读这 {len(WHITEPAPER_CHART_SEQUENCE)} 张图", level=1)
-    p = doc.add_paragraph(); _set_run(p.add_run(f"交付表中 {audit['critical_conflict_orders']:,}/{audit['row_counts']['unique_orders']:,} 个唯一订单存在关键字段冲突。图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层；每张图旁均标明其可支持与不可支持的解释。"))
+    doc.add_heading(f"如何阅读五个任务块与 {len(WHITEPAPER_CHART_SEQUENCE)} 张图", level=1)
+    p = doc.add_paragraph(); _set_run(p.add_run(f"白皮书严格对应项目任务书的 W1-W5 五周交付路径。交付表中 {audit['critical_conflict_orders']:,}/{audit['row_counts']['unique_orders']:,} 个唯一订单存在关键字段冲突；每张图均放在其直接支持的任务块中，并标明可支持与不可支持的解释。"))
     _add_color_legend(doc)
+    doc.add_page_break()
+    doc.add_heading("五周任务交付总览", level=1)
+    task_table = doc.add_table(rows=1, cols=4); task_table.style = "Table Grid"
+    for i, value in enumerate(["任务", "图表数", "完成状态", "主要输出"]):
+        task_table.rows[0].cells[i].text = value
+        for run in task_table.rows[0].cells[i].paragraphs[0].runs: _set_run(run, size=9.5, bold=True)
+    for task, meta in WHITEPAPER_TASK_SECTIONS.items():
+        cells = task_table.add_row().cells
+        values = [task.split(" ", 1)[0], str(len(WHITEPAPER_TASK_CHART_KEYS[task])), meta["state"], meta["deliverable"]]
+        for i, value in enumerate(values):
+            cells[i].text = value
+            for run in cells[i].paragraphs[0].runs: _set_run(run, size=8.5)
+    _set_table_geometry(task_table, [900, 900, 2300, 5260])
+    doc.add_page_break()
     current_section = None
     for figure_no, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
         if spec["section"] != current_section:
+            if current_section is not None:
+                doc.add_page_break()
             current_section = spec["section"]
             doc.add_heading(current_section, level=1)
+            meta = WHITEPAPER_TASK_SECTIONS[current_section]
+            p = doc.add_paragraph(); _set_run(p.add_run("任务目标："), size=10.5, bold=True); _set_run(p.add_run(meta["goal"]), size=10.5)
+            p = doc.add_paragraph(); _set_run(p.add_run("完成情况："), size=10.5, bold=True); _set_run(p.add_run(meta["status"]), size=10.5)
+            p = doc.add_paragraph(); _set_run(p.add_run("本章交付："), size=10.5, bold=True); _set_run(p.add_run(f"{meta['deliverable']}（共 {len(WHITEPAPER_TASK_CHART_KEYS[current_section])} 张图）"), size=10.5)
         p = doc.add_paragraph(); p.paragraph_format.space_after = Pt(4)
         _set_run(p.add_run(spec["note"]), size=10.5, color="111827")
         _add_image(doc, images[spec["key"]], f"图 {figure_no}. {spec['caption']}")
@@ -400,9 +425,15 @@ def generate_whitepaper(analysis: dict[str, Any], audit: dict[str, Any], images:
     _add_bullets(doc, ["公开看板使用样本量阈值为 10 的脱敏汇总数据。", "预测重要性不是因果贡献。", "机会优先级不是预算投资回报率，也不等于预期增量订单。", "原始工作簿未被修改。"])
     docx_path = REPORTS_DIR / "W5_sales_operations_white_paper.docx"; doc.save(docx_path)
 
-    md = ["# G9 销售运营证据白皮书", "", "## 执行摘要", "", f"- 面谈处理组平均效应：{_pp(psm['estimate'])}，95% 置信区间 {_ci_pp(psm['ci95'])}，未发现可靠增益。", f"- 时间外受试者工作特征曲线下面积：{model['roc_auc']:.3f}，公开看板不提供逐客户预测。", "- 断点回归、多触点沙普利归因和渠道投资回报率均因数据条件不足而停用。", f"- 白皮书包含 {len(WHITEPAPER_CHART_SEQUENCE)} 张审计后分析图，每张图均配有证据边界说明。", "", "## 颜色图例", "", "- 🟥 优先改进", "- 🟧 需要关注", "- 🟩 表现较好", "- 🟦 描述性/不可判优劣", "", "红橙绿按同一张图中的相对分位识别改进优先级，不是业务目标、显著性或因果效应。", "", "## 图表目录", ""]
-    for i, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
-        md.append(f"{i}. **{spec['caption']}**：{spec['note']}")
+    md = ["# G9 智能销售运营决策白皮书", "", "## 执行摘要", "", f"- 面谈处理组平均效应：{_pp(psm['estimate'])}，95% 置信区间 {_ci_pp(psm['ci95'])}，未发现可靠增益。", f"- 时间外受试者工作特征曲线下面积：{model['roc_auc']:.3f}，公开看板不提供逐客户预测。", "- 断点回归、多触点沙普利归因和渠道投资回报率均因数据条件不足而停用。", f"- 白皮书按 W1-W5 五周任务分块，包含 {len(WHITEPAPER_CHART_SEQUENCE)} 张审计后分析图。", "", "## 颜色图例", "", "- 🟥 优先改进", "- 🟧 需要关注", "- 🟩 表现较好", "- 🟦 描述性/不可判优劣", "", "红橙绿按同一张图中的相对分位识别改进优先级，不是业务目标、显著性或因果效应。", ""]
+    figure_no = 1
+    for task, keys in WHITEPAPER_TASK_CHART_KEYS.items():
+        meta = WHITEPAPER_TASK_SECTIONS[task]
+        md += [f"## {task}", "", f"- **任务目标：** {meta['goal']}", f"- **完成情况：** {meta['status']}", f"- **本章交付：** {meta['deliverable']}（共 {len(keys)} 张图）", ""]
+        for spec in [item for item in WHITEPAPER_CHART_SEQUENCE if item["section"] == task]:
+            md.append(f"{figure_no}. **{spec['caption']}**：{spec['note']}")
+            figure_no += 1
+        md.append("")
     md += ["", "## 行动", "", "1. 补齐下订、承诺交付和实际交付时间戳。", "2. 运行随机化跟进方式试点。", "3. 建立渠道级花费与触点路径。", ""]
     md_path = REPORTS_DIR / "W5_white_paper.md"; md_path.write_text("\n".join(md), encoding="utf-8")
     return docx_path, md_path
@@ -504,9 +535,9 @@ def generate_pdf_reports(analysis: dict[str, Any], audit: dict[str, Any], images
     w2.build(story, onFirstPage=_pdf_page, onLaterPages=_pdf_page)
 
     w5_path = REPORTS_DIR / "W5_sales_operations_white_paper.pdf"
-    w5 = SimpleDocTemplate(str(w5_path), pagesize=letter, rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=46, title="G9 销售运营证据白皮书")
+    w5 = SimpleDocTemplate(str(w5_path), pagesize=letter, rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=46, title="G9 智能销售运营决策白皮书")
     model = analysis["model"]["metrics"]
-    white = [Paragraph("G9 销售运营证据白皮书", styles["title"]), Paragraph("执行摘要", styles["h1"])]
+    white = [Paragraph("G9 智能销售运营决策白皮书", styles["title"]), Paragraph("执行摘要", styles["h1"])]
     for item in [f"• 面谈处理组平均效应为 {_pp(psm['estimate'])}，不支持确定性扩张。", f"• 时间外受试者工作特征曲线下面积为 {model['roc_auc']:.3f}，公开看板关闭逐客户预测。", "• 交付表关键冲突严重，延迟指标只使用无冲突订单。", "• 预算投资回报率改为机会优先级，所有建议需通过试验验证。"]:
         white.append(Paragraph(item, styles["bullet"]))
     color_legend = (
@@ -515,12 +546,37 @@ def generate_pdf_reports(analysis: dict[str, Any], audit: dict[str, Any], images
         f'<font color="{GOOD_GREEN}"><b>■ 表现较好</b></font>　'
         f'<font color="{NEUTRAL_BLUE}"><b>■ 描述性</b></font>'
     )
-    white += [Paragraph(f"如何阅读这 {len(WHITEPAPER_CHART_SEQUENCE)} 张图", styles["h1"]), Paragraph("图表按描述性运营、因果诊断、调整后关联、预测解释和机会排序分层。图旁说明明确限制其解释边界，避免把相关性包装为因果结论。", styles["body"]), Paragraph(color_legend, styles["body"]), Paragraph("红橙绿按同图相对分位识别改进优先级，不代表业务目标、显著性或因果效应；蓝灰图只作描述。", styles["body"]), PageBreak()]
+    white += [
+        Paragraph(f"如何阅读五个任务块与 {len(WHITEPAPER_CHART_SEQUENCE)} 张图", styles["h1"]),
+        Paragraph("白皮书严格对应任务书的 W1-W5 五周路径。每张图均放在其直接支持的任务块中，并在图前说明可支持的判断和证据边界。", styles["body"]),
+        Paragraph(color_legend, styles["body"]),
+        Paragraph("红橙绿按同图相对分位识别改进优先级，不代表业务目标、显著性或因果效应；蓝灰图只作描述。", styles["body"]),
+        Paragraph("五周任务交付总览", styles["h1"]),
+    ]
+    task_rows = [["任务", "图表数", "完成状态", "主要输出"]]
+    for task, meta in WHITEPAPER_TASK_SECTIONS.items():
+        task_rows.append([task.split(" ", 1)[0], str(len(WHITEPAPER_TASK_CHART_KEYS[task])), meta["state"], meta["deliverable"]])
+    task_table = Table(task_rows, colWidths=[0.65*inch, 0.6*inch, 1.75*inch, 3.25*inch], repeatRows=1)
+    task_table.setStyle(TableStyle([
+        ("FONTNAME", (0,0), (-1,-1), font_name), ("FONTSIZE", (0,0), (-1,-1), 7.5),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#F2F4F7")),
+        ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#CBD5E1")),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LEFTPADDING", (0,0), (-1,-1), 5), ("RIGHTPADDING", (0,0), (-1,-1), 5),
+        ("TOPPADDING", (0,0), (-1,-1), 5), ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+    ]))
+    white += [task_table, PageBreak()]
     current_section = None
     for figure_no, spec in enumerate(WHITEPAPER_CHART_SEQUENCE, start=1):
         if spec["section"] != current_section:
+            if current_section is not None:
+                white.append(PageBreak())
             current_section = spec["section"]
             white.append(Paragraph(current_section, styles["h1"]))
+            meta = WHITEPAPER_TASK_SECTIONS[current_section]
+            white.append(Paragraph(f"<b>任务目标：</b>{meta['goal']}", styles["body"]))
+            white.append(Paragraph(f"<b>完成情况：</b>{meta['status']}", styles["body"]))
+            white.append(Paragraph(f"<b>本章交付：</b>{meta['deliverable']}（共 {len(WHITEPAPER_TASK_CHART_KEYS[current_section])} 张图）", styles["body"]))
         white.append(compact_image_block(spec["key"], f"图 {figure_no}. {spec['caption']}", spec["note"]))
     white += [Paragraph("90 天实施路径", styles["h1"])] + [Paragraph(item, styles["bullet"]) for item in ["• 0-30 天：锁定唯一键、时间戳和冲突修复责任。", "• 31-60 天：开展跟进随机化试点并建立渠道花费明细。", "• 61-90 天：将实验结果、证据等级和数据哈希接入经营复盘。"]]
     w5.build(white, onFirstPage=_pdf_page, onLaterPages=_pdf_page)

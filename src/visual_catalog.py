@@ -41,8 +41,9 @@ LIGHT = MUTED_GRAY
 
 
 # Fifty-four figures, including the nine core causal/predictive figures created
-# in reporting.py.  The sequence is also the white-paper reading order.
-WHITEPAPER_CHART_SEQUENCE: list[dict[str, str]] = [
+# in reporting.py.  Task metadata below turns this source catalog into the
+# five-week white-paper reading order defined by the project brief.
+_WHITEPAPER_CHART_CATALOG: list[dict[str, str]] = [
     {"section": "数据基础与运营全景", "key": "monthly_leads_orders", "caption": "月度线索与下订规模", "note": "月度规模图用于核对业务量级和时间覆盖，不用于推断策略效果。"},
     {"section": "数据基础与运营全景", "key": "business_funnel", "caption": "销售运营阶段规模", "note": "阶段规模用于展示线索、有效跟进、下订及无冲突订单的数量关系，各阶段口径并非严格同一时间漏斗。"},
     {"section": "数据基础与运营全景", "key": "monthly_conversion", "caption": "月度下订转化率", "note": "转化率按当月线索为分母，展示经营波动而非因果变化。"},
@@ -97,6 +98,77 @@ WHITEPAPER_CHART_SEQUENCE: list[dict[str, str]] = [
     {"section": "渠道、预测与机会排序", "key": "importance", "caption": "时间外预测特征重要性", "note": "特征重要性解释预测模型，不代表因果贡献。"},
     {"section": "渠道、预测与机会排序", "key": "strategy", "caption": "城市-渠道机会优先级", "note": "优先级用于安排诊断和试验，不是预算投资回报率或预期增量订单。"},
     {"section": "渠道、预测与机会排序", "key": "opportunity_priority_scatter", "caption": "城市-渠道机会优先级矩阵", "note": "点的大小表示线索规模，颜色表示相对诊断优先级；该分数不是预算投资回报或预期增量订单。"},
+]
+
+
+WHITEPAPER_TASK_SECTIONS: dict[str, dict[str, str]] = {
+    "W1 数据清洗与数据仓库建设": {
+        "state": "已完成",
+        "goal": "重建线索级、订单级和跟进事件级分析主表，明确唯一键、异常值、重复订单与时序规则。",
+        "status": "已完成清洗宽表、冲突订单隔离和数据质量审计；原始工作簿保持只读。",
+        "deliverable": "清洗后主表、数据质量报告、经营规模与数据完整性图组。",
+    },
+    "W2 因果推断与归因分析": {
+        "state": "已完成，部分方法停用",
+        "goal": "评估首次面谈跟进、交付延迟和渠道差异，同时审计各方法是否具备识别条件。",
+        "status": "倾向得分匹配平衡通过但效应区间跨零；交付仅能报告调整后关联；断点回归和多触点归因因数据条件不足停用。",
+        "deliverable": "匹配诊断、效应与敏感性图、交付关联图、渠道描述与标准化比较图。",
+    },
+    "W3 预测建模与智能预警": {
+        "state": "已完成，预测降级为验证基线",
+        "goal": "使用处理前特征和时间外验证建立转化基线，并把客户、跟进与交付风险转为可监控信号。",
+        "status": "时间外模型仅达到验证基线，公开看板关闭逐客户预测；缺少事件时间戳，因此不生成伪生存分析。",
+        "deliverable": "风险分层输入图、行为分布图、时间外特征重要性与聚合风险预警图。",
+    },
+    "W4 策略仿真与优化": {
+        "state": "已完成，优化改为机会排序",
+        "goal": "在不伪造渠道成本或增量效果的前提下，对城市、渠道和运营组合进行机会排序与试验优先级设计。",
+        "status": "预算优化降级为机会优先级；因缺少渠道级花费、竞品价格和排班约束，不输出虚假投资回报率、博弈定价或最优排班。",
+        "deliverable": "渠道结构图、量效矩阵、城市-渠道机会排序图和策略诊断清单。",
+    },
+    "W5 决策看板与落地汇报": {
+        "state": "已完成",
+        "goal": "把统一口径、证据等级和运营风险接入看板与管理复盘，并形成可执行实施路线。",
+        "status": "看板采用脱敏汇总数据；交付、评分和投诉监控统一使用无关键冲突订单口径。",
+        "deliverable": "六页看板、中文证据白皮书、汇报材料与 90 天实施路径。",
+    },
+}
+
+
+WHITEPAPER_TASK_CHART_KEYS: dict[str, list[str]] = {
+    "W1 数据清洗与数据仓库建设": [
+        "monthly_leads_orders", "business_funnel", "city_leads", "city_leads_orders",
+        "city_month_leads_heatmap", "order_quality_flow", "order_conflict_types", "temporal_issues",
+        "config_order_volume", "monthly_followup_coverage", "city_followup_coverage",
+    ],
+    "W2 因果推断与归因分析": [
+        "first_method_mix", "first_method_conversion", "propensity", "balance", "effects", "sensitivity",
+        "delay_score_boxplot", "delivery", "channel", "channel_standardized",
+        "channel_raw_vs_standardized", "channel_standardization_gap", "channel_orders_per_100",
+    ],
+    "W3 预测建模与智能预警": [
+        "monthly_conversion", "city_conversion", "age_conversion", "gender_conversion", "method_duration",
+        "method_duration_boxplot", "followup_count_distribution", "followup_count_conversion",
+        "testdrive_conversion", "risk_scatter", "importance", "city_method_mix_heatmap",
+    ],
+    "W4 策略仿真与优化": [
+        "channel_lead_mix", "channel_lead_share", "channel_followup_coverage",
+        "city_coverage_conversion_scatter", "city_channel_conversion_heatmap",
+        "month_channel_conversion_heatmap", "city_month_conversion_heatmap", "city_complaint_rate",
+        "strategy", "opportunity_priority_scatter",
+    ],
+    "W5 决策看板与落地汇报": [
+        "city_delay_rate", "city_delivery_score", "config_delay_rate", "config_delivery_score",
+        "config_complaint_rate", "monthly_delay_rate", "monthly_delivery_score", "monthly_complaint_rate",
+    ],
+}
+
+
+_CHART_BY_KEY = {item["key"]: item for item in _WHITEPAPER_CHART_CATALOG}
+WHITEPAPER_CHART_SEQUENCE: list[dict[str, str]] = [
+    {**_CHART_BY_KEY[key], "section": task}
+    for task, keys in WHITEPAPER_TASK_CHART_KEYS.items()
+    for key in keys
 ]
 
 
