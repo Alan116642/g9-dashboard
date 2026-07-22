@@ -123,10 +123,15 @@ def test_action_colors_follow_metric_direction():
     assert classify_relative([10, 20, 30], "lower") == [GOOD, WATCH, IMPROVE]
 
 
-def test_explicit_uploaded_source_path_matches_immutable_workbook():
-    source = gp.workbook_path()
-    assert gp.source_sha256(source) == gp.source_sha256()
-    assert len(gp.load_raw_workbook(source)) == 6
+def test_explicit_uploaded_source_path_loads_six_required_sheets(tmp_path):
+    source = tmp_path / "uploaded.xlsx"
+    required_sheets = ["销售线索", "跟进日志", "交付记录", "售后工单", "销售员信息", "门店成本"]
+    with pd.ExcelWriter(source, engine="openpyxl") as writer:
+        for sheet_name in required_sheets:
+            pd.DataFrame({"测试列": []}).to_excel(writer, sheet_name=sheet_name, index=False)
+
+    assert gp.source_sha256(source) == gp.source_sha256(str(source))
+    assert list(gp.load_raw_workbook(source)) == required_sheets
 
 
 def test_dashboard_renders_six_pages_and_40_charts(monkeypatch):
