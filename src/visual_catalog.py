@@ -172,6 +172,73 @@ WHITEPAPER_CHART_SEQUENCE: list[dict[str, str]] = [
 ]
 
 
+# The final white paper follows the chapter structure of the user's reference
+# document while retaining the audited W1-W5 task ownership of every figure.
+# Each chart key appears exactly once so the 54-figure count is deterministic.
+WHITEPAPER_CHAPTER_STRUCTURE: list[dict[str, Any]] = [
+    {
+        "chapter": "第一章  执行摘要",
+        "task": "W5 决策看板与落地汇报",
+        "sections": [
+            {"title": "1.1 问题与答案", "keys": ["monthly_leads_orders"]},
+            {"title": "1.2 五大核心发现", "keys": ["business_funnel"]},
+            {"title": "1.3 目标与证据边界", "keys": []},
+        ],
+    },
+    {
+        "chapter": "第二章  数据诊断",
+        "task": "W1 数据清洗与数据仓库建设",
+        "sections": [
+            {"title": "2.1 转化漏斗", "keys": ["monthly_conversion", "city_conversion"]},
+            {"title": "2.2 渠道效率全景", "keys": ["channel_lead_mix", "channel_lead_share", "channel_followup_coverage", "channel_orders_per_100"]},
+            {"title": "2.3 城市效率地图", "keys": ["city_leads", "city_leads_orders", "city_followup_coverage", "city_coverage_conversion_scatter"]},
+            {"title": "2.4 时间趋势", "keys": ["city_month_leads_heatmap", "month_channel_conversion_heatmap", "city_month_conversion_heatmap", "monthly_followup_coverage"]},
+            {"title": "2.5 客户画像与试驾行为", "keys": ["age_conversion", "gender_conversion", "testdrive_conversion", "config_order_volume"]},
+            {"title": "2.6 数据质量与时序审计", "keys": ["order_quality_flow", "order_conflict_types", "temporal_issues"]},
+        ],
+    },
+    {
+        "chapter": "第三章  因果归因",
+        "task": "W2 因果推断与归因分析",
+        "sections": [
+            {"title": "3.1 为什么需要因果推断", "keys": ["first_method_mix", "first_method_conversion"]},
+            {"title": "3.2 倾向得分匹配：跟进方式的条件因果估计", "keys": ["propensity", "balance", "effects", "sensitivity"]},
+            {"title": "3.3 交付延迟：调整后关联与断点可行性审计", "keys": ["delay_score_boxplot", "delivery"]},
+            {"title": "3.4 渠道归因：描述、标准化与识别边界", "keys": ["channel", "channel_standardized", "channel_raw_vs_standardized", "channel_standardization_gap"]},
+            {"title": "3.5 异质性与分层线索", "keys": ["city_channel_conversion_heatmap"]},
+        ],
+    },
+    {
+        "chapter": "第四章  预测预警",
+        "task": "W3 预测建模与智能预警",
+        "sections": [
+            {"title": "4.1 转化预测基线", "keys": ["importance", "risk_scatter"]},
+            {"title": "4.2 关键预测因子解读", "keys": ["method_duration", "method_duration_boxplot", "followup_count_distribution", "followup_count_conversion", "city_method_mix_heatmap"]},
+            {"title": "4.3 聚合风险预警", "keys": ["city_delay_rate", "city_delivery_score", "config_delay_rate", "config_delivery_score", "config_complaint_rate", "monthly_delay_rate", "monthly_delivery_score", "monthly_complaint_rate"]},
+        ],
+    },
+    {
+        "chapter": "第五章  策略优化",
+        "task": "W4 策略仿真与优化",
+        "sections": [
+            {"title": "5.1 机会优先级与资源配置", "keys": ["strategy", "opportunity_priority_scatter"]},
+            {"title": "5.2 定价博弈可行性审计", "keys": []},
+            {"title": "5.3 人效与售后改善线索", "keys": ["city_complaint_rate"]},
+            {"title": "5.4 综合策略推荐", "keys": []},
+        ],
+    },
+    {
+        "chapter": "第六章  实施路线图",
+        "task": "W5 决策看板与落地汇报",
+        "sections": [
+            {"title": "6.1 0-30 天：口径与数据责任", "keys": []},
+            {"title": "6.2 31-60 天：试验与补采", "keys": []},
+            {"title": "6.3 61-90 天：规则更新与经营复盘", "keys": []},
+        ],
+    },
+]
+
+
 def _save(fig: plt.Figure, chart_dir: Path, filename: str) -> Path:
     chart_dir.mkdir(parents=True, exist_ok=True)
     path = chart_dir / filename
