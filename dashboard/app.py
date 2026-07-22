@@ -9,6 +9,8 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -36,6 +38,7 @@ from visual_semantics import (  # noqa: E402
     classify_relative,
     semantic_colorscale,
 )
+from g9_pipeline import _aggregate_cubes, build_clean_data, build_strategy  # noqa: E402
 
 px.defaults.color_discrete_sequence = [NEUTRAL_BLUE, MUTED_GRAY, WATCH_AMBER, "#0EA5E9", "#7C3AED"]
 
@@ -84,6 +87,52 @@ def dashboard_data_version() -> str:
     """Return a content key so Streamlit invalidates cached data after deploys."""
     metadata_path = active_data_dir() / "dashboard_metadata.json"
     return hashlib.sha256(metadata_path.read_bytes()).hexdigest()
+
+
+@st.cache_data(show_spinner="正在校验并汇总上传的真实数据……")
+def load_uploaded_workbook(file_bytes: bytes, file_name: str):
+    """Build session-only aggregates from an authenticated workbook upload."""
+    uploaded_hash = hashlib.sha256(file_bytes).hexdigest()
+    reviewed_results = json.loads((PUBLIC_DIR / "analysis_results.json").read_text(encoding="utf-8"))
+    expected_hash = reviewed_results.get("source_sha256")
+    if uploaded_hash != expected_hash:
+        raise ValueError(
+            "上传文件与已审核分析结果的数据哈希不一致。为避免图表与因果结论错配，本版本只接受已审核的原始 Excel。"
+        )
+
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as handle:
+            handle.write(file_bytes)
+            temporary_path = Path(handle.name)
+        bundle = build_clean_data(save=False, source_path=temporary_path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+    lead_cube, order_cube, _, _ = _aggregate_cubes(bundle.leads, bundle.orders)
+    strategy = build_strategy(bundle.leads, pd.DataFrame())
+    metadata = {
+        "dataset_type": "session_uploaded_complete_aggregate",
+        "generated_at": datetime.now().astimezone().isoformat(),
+        "data_as_of": str(bundle.leads["日期"].max().date()),
+        "source_workbook_sha256": uploaded_hash,
+        "data_hash": uploaded_hash,
+        "source_file": file_name,
+        "privacy": {
+            "storage": "仅当前 Streamlit 会话内存，不写入 GitHub 或服务器持久文件",
+            "display": "仅展示实时派生汇总，不展示客户、订单或销售人员明细 ID",
+        },
+        "global_summary": {
+            "线索数": int(bundle.leads["线索ID"].nunique()),
+            "下订数": int(bundle.leads["是否下订"].sum()),
+            "转化率": float(bundle.leads["是否下订"].mean()),
+            "有效跟进线索数": int(bundle.leads["有效跟进线索"].sum()),
+            "无关键冲突订单数": int((~bundle.orders["关键冲突"]).sum()),
+        },
+        "data_quality_audit": bundle.audit,
+    }
+    return lead_cube, order_cube, strategy, reviewed_results, metadata, "本次会话真实数据"
 
 
 @st.cache_data(show_spinner=False)
@@ -255,7 +304,26 @@ def heatmap(
 
 
 require_login()
-lead_cube, order_cube, strategy, results, metadata, data_mode = load_dashboard_data(dashboard_data_version())
+with st.sidebar:
+    st.subheader("数据源")
+    uploaded_workbook = st.file_uploader(
+        "上传真实销售运营 Excel",
+        type=["xlsx"],
+        help="文件只在当前登录会话中读取并生成汇总，不写入 GitHub。当前版本仅接受与已审核结果哈希一致的原始工作簿。",
+    )
+
+if uploaded_workbook is not None:
+    try:
+        lead_cube, order_cube, strategy, results, metadata, data_mode = load_uploaded_workbook(
+            uploaded_workbook.getvalue(), uploaded_workbook.name
+        )
+        st.sidebar.success("真实 Excel 已载入；当前页面使用本次会话完整汇总。")
+    except Exception as exc:
+        st.sidebar.error(f"Excel 载入失败：{exc}")
+        st.stop()
+else:
+    lead_cube, order_cube, strategy, results, metadata, data_mode = load_dashboard_data(dashboard_data_version())
+    st.sidebar.info("当前使用公开脱敏汇总数据。上传已审核原始 Excel 后可切换为本次会话真实数据。")
 
 st.markdown(
     """
@@ -301,7 +369,10 @@ with st.sidebar:
     st.caption(f"数据截止：{metadata.get('data_as_of', '—')}")
     st.caption(f"生成时间：{metadata.get('generated_at', '—')[:19]}")
     st.caption(f"数据哈希：{metadata.get('public_data_hash', metadata.get('data_hash', '—'))[:16]}…")
-    st.caption("公开汇总对样本量小于 10 的交叉单元执行抑制。")
+    if data_mode == "公开脱敏汇总数据":
+        st.caption("公开汇总对样本量小于 10 的交叉单元执行抑制。")
+    else:
+        st.caption("真实 Excel 仅在当前登录会话中生成汇总；不会写入 GitHub 或服务器持久文件。")
 
 lead_filtered = apply_filters(lead_cube, {"月份": month, "城市": city, "渠道": channel, "性别": gender, "年龄段": age})
 order_filtered = apply_filters(order_cube, {"月份": month, "城市": city, "渠道": channel})

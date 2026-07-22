@@ -123,6 +123,12 @@ def test_action_colors_follow_metric_direction():
     assert classify_relative([10, 20, 30], "lower") == [GOOD, WATCH, IMPROVE]
 
 
+def test_explicit_uploaded_source_path_matches_immutable_workbook():
+    source = gp.workbook_path()
+    assert gp.source_sha256(source) == gp.source_sha256()
+    assert len(gp.load_raw_workbook(source)) == 6
+
+
 def test_dashboard_renders_six_pages_and_40_charts(monkeypatch):
     from streamlit.testing.v1 import AppTest
 

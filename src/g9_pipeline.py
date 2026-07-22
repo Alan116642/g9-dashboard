@@ -44,7 +44,7 @@ def ensure_dirs() -> None:
 
 
 def workbook_path() -> Path:
-    matches = sorted(ROOT.glob("*.xlsx"))
+    matches = sorted(p for p in ROOT.glob("*.xlsx") if not p.name.startswith("~$"))
     if not matches:
         raise FileNotFoundError("No source .xlsx workbook found in project root")
     if len(matches) > 1:
@@ -55,9 +55,10 @@ def workbook_path() -> Path:
     return matches[0]
 
 
-def source_sha256() -> str:
+def source_sha256(path: Path | str | None = None) -> str:
+    source = Path(path) if path is not None else workbook_path()
     h = hashlib.sha256()
-    with workbook_path().open("rb") as handle:
+    with source.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
@@ -98,8 +99,8 @@ def mode_value(series: pd.Series) -> Any:
     return modes.sort_values(key=lambda s: s.astype(str)).iloc[0]
 
 
-def load_raw_workbook() -> dict[str, pd.DataFrame]:
-    path = workbook_path()
+def load_raw_workbook(path: Path | str | None = None) -> dict[str, pd.DataFrame]:
+    path = Path(path) if path is not None else workbook_path()
     excel = pd.ExcelFile(path)
     required = ["销售线索", "跟进日志", "交付记录", "售后工单", "销售员信息", "门店成本"]
     missing = [sheet for sheet in required if sheet not in excel.sheet_names]
@@ -165,9 +166,10 @@ class CleanBundle:
     audit: dict[str, Any]
 
 
-def build_clean_data(save: bool = True) -> CleanBundle:
+def build_clean_data(save: bool = True, source_path: Path | str | None = None) -> CleanBundle:
     ensure_dirs()
-    raw = load_raw_workbook()
+    source = Path(source_path) if source_path is not None else workbook_path()
+    raw = load_raw_workbook(source)
     leads = raw["销售线索"].copy()
     followups = raw["跟进日志"].copy()
     sales = raw["销售员信息"].copy()
@@ -226,8 +228,8 @@ def build_clean_data(save: bool = True) -> CleanBundle:
     order_groups = raw["交付记录"].groupby("订单ID").size()
     conflict_counts = {field: int(orders[f"{field}_冲突"].sum()) for field in ORDER_FIELDS}
     audit = {
-        "source": workbook_path().name,
-        "source_sha256": source_sha256(),
+        "source": source.name,
+        "source_sha256": source_sha256(source),
         "generated_at": datetime.now().astimezone().isoformat(),
         "grain": {"lead_level": "one row per 线索ID", "order_level": "one row per 订单ID", "followup_events": "one row per 跟进ID"},
         "row_counts": {
