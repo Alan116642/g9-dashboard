@@ -11,7 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import g9_pipeline as gp
-from visual_catalog import WHITEPAPER_CHART_SEQUENCE, WHITEPAPER_TASK_CHART_KEYS, WHITEPAPER_TASK_SECTIONS
+from visual_catalog import (
+    WHITEPAPER_CHAPTER_STRUCTURE,
+    WHITEPAPER_CHART_SEQUENCE,
+    WHITEPAPER_TASK_CHART_KEYS,
+    WHITEPAPER_TASK_SECTIONS,
+)
 from visual_semantics import GOOD, IMPROVE, WATCH, classify_relative
 
 
@@ -94,11 +99,39 @@ def test_whitepaper_visual_catalog_has_expanded_chinese_volume():
     assert [item["section"] for item in WHITEPAPER_CHART_SEQUENCE] == [
         task for task, chart_keys in WHITEPAPER_TASK_CHART_KEYS.items() for _ in chart_keys
     ]
+    assert [chapter["chapter"] for chapter in WHITEPAPER_CHAPTER_STRUCTURE] == [
+        "第一章  执行摘要",
+        "第二章  数据诊断",
+        "第三章  因果归因",
+        "第四章  预测预警",
+        "第五章  策略优化",
+        "第六章  实施路线图",
+    ]
+    chapter_keys = [
+        key
+        for chapter in WHITEPAPER_CHAPTER_STRUCTURE
+        for section in chapter["sections"]
+        for key in section["keys"]
+    ]
+    assert len(chapter_keys) == 54
+    assert len(chapter_keys) == len(set(chapter_keys))
+    assert set(chapter_keys) == set(keys)
 
 
 def test_action_colors_follow_metric_direction():
     assert classify_relative([10, 20, 30], "higher") == [IMPROVE, WATCH, GOOD]
     assert classify_relative([10, 20, 30], "lower") == [GOOD, WATCH, IMPROVE]
+
+
+def test_explicit_uploaded_source_path_loads_six_required_sheets(tmp_path):
+    source = tmp_path / "uploaded.xlsx"
+    required_sheets = ["销售线索", "跟进日志", "交付记录", "售后工单", "销售员信息", "门店成本"]
+    with pd.ExcelWriter(source, engine="openpyxl") as writer:
+        for sheet_name in required_sheets:
+            pd.DataFrame({"测试列": []}).to_excel(writer, sheet_name=sheet_name, index=False)
+
+    assert gp.source_sha256(source) == gp.source_sha256(str(source))
+    assert list(gp.load_raw_workbook(source)) == required_sheets
 
 
 def test_dashboard_renders_six_pages_and_40_charts(monkeypatch):

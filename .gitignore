@@ -17,8 +17,12 @@ data_demo/*
 # Models and generated local artifacts
 models/
 reports/
+deliverables/
 catboost_info/
 tmp/
+.venv/
+.claude/
+node_modules/
 
 # Python and test caches
 __pycache__/
